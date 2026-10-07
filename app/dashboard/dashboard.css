@@ -1,0 +1,528 @@
+/* =========================================================
+   LinkStorX Dashboard — simple flat CSS, no variables/:root.
+   Same Poppins font + blue gradient as the navbar.
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800;900&display=swap');
+
+.dash-layout,
+.dash-layout * {
+  box-sizing: border-box;
+}
+
+.dash-layout {
+  font-family: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  background: #f4f7ff;
+  color: #0a0f3d;
+}
+
+.dash-layout a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.dash-layout button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+}
+
+.dash-layout label {
+  cursor: pointer;
+}
+
+.dash-layout svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.dash-layout svg path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* hidden checkboxes: open/close state yahi rakhte hain */
+.dash-check {
+  display: none;
+}
+
+/* ---------- Sidebar ---------- */
+
+.dash-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 260px;
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  background: #ffffff;
+  border-right: 1px solid rgba(10, 15, 61, 0.08);
+  box-shadow: 4px 0 18px rgba(10, 15, 61, 0.05);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dash-sidebar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 20px;
+  border-bottom: 1px solid rgba(10, 15, 61, 0.08);
+}
+
+.dash-sidebar-logo {
+  height: 60px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.dash-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(10, 15, 61, 0.06);
+  color: #0a0f3d;
+  transition: background-color 0.25s ease, transform 0.25s ease;
+}
+
+.dash-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dash-close:hover {
+  background: rgba(10, 15, 61, 0.12);
+  transform: rotate(90deg);
+}
+
+.dash-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 12px;
+  overflow-y: auto;
+}
+
+.dash-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  color: #3b4270;
+  font-size: 15px;
+  font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.dash-link:hover {
+  background: rgba(10, 15, 61, 0.06);
+  color: #0a0f3d;
+}
+
+
+
+.dash-sidebar-footer {
+  margin-top: auto;
+  padding: 14px 18px 22px;
+  border-top: 1px solid rgba(10, 15, 61, 0.08);
+  font-size: 12px;
+  text-align: center;
+  color: rgba(10, 15, 61, 0.45);
+}
+
+.dash-overlay {
+  display: none;
+}
+
+/* ---------- Main ---------- */
+
+.dash-main {
+  margin-left: 260px;
+  min-height: 100vh;
+}
+
+.dash-header {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 72px;
+  padding: 0 24px;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(10, 15, 61, 0.06);
+  box-shadow: 0 4px 18px rgba(10, 15, 61, 0.06);
+}
+
+.dash-header-logo {
+  display: none;
+  flex-shrink: 1;
+  min-width: 0;
+  line-height: 0;
+}
+
+.dash-header-img {
+  height: 44px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.dash-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ---------- Profile ---------- */
+
+.dash-profile {
+  position: relative;
+}
+
+/* profile ke bahar click karne par band karne ke liye */
+.dash-profile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+#dash-profile:checked ~ .dash-main .dash-profile-overlay {
+  display: block;
+}
+
+.dash-profile-btn {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 12px 0 4px;
+  border-radius: 999px;
+  background: rgba(10, 15, 61, 0.05);
+  color: #0a0f3d;
+  transition: background-color 0.25s ease;
+}
+
+.dash-profile-btn:hover {
+  background: rgba(10, 15, 61, 0.1);
+}
+
+.dash-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(120deg, #1a2fd6 0%, #2f6bff 100%);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.dash-profile-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.dash-layout .dash-chevron {
+  width: 16px;
+  height: 16px;
+}
+
+.dash-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 3;
+  width: 260px;
+  padding: 8px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(10, 15, 61, 0.08);
+  box-shadow: 0 16px 40px rgba(10, 15, 61, 0.16);
+}
+
+#dash-profile:checked ~ .dash-main .dash-dropdown {
+  display: block;
+}
+
+.dash-dropdown-user {
+  padding: 10px 12px 14px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(10, 15, 61, 0.08);
+}
+
+.dash-dropdown-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.dash-dropdown-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3b4270;
+}
+
+.dash-logout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: transparent;
+  color: #d92d2d;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  transition: background-color 0.2s ease;
+}
+
+.dash-logout:hover {
+  background: #fff1f1;
+}
+
+/* ---------- Hamburger (mobile only) ---------- */
+
+.dash-hamburger {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: rgba(10, 15, 61, 0.06);
+  transition: background-color 0.25s ease;
+}
+
+.dash-hamburger:hover {
+  background: rgba(10, 15, 61, 0.1);
+}
+
+.dash-hamburger span {
+  display: block;
+  width: 19px;
+  height: 2px;
+  border-radius: 2px;
+  background: #0a0f3d;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
+}
+
+#dash-menu:checked ~ .dash-main .dash-hamburger span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+#dash-menu:checked ~ .dash-main .dash-hamburger span:nth-child(2) {
+  opacity: 0;
+}
+
+#dash-menu:checked ~ .dash-main .dash-hamburger span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* ---------- Content ---------- */
+
+.dash-content {
+  padding: 28px 24px;
+}
+
+.dash-heading {
+  font-size: 26px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+
+/* Tablet and below: sidebar becomes a left-to-right slide-in drawer */
+@media (max-width: 968px) {
+  .dash-sidebar {
+    width: min(80vw, 300px);
+    transform: translateX(-100%);
+    box-shadow: 24px 0 60px rgba(10, 15, 61, 0.18);
+  }
+
+  #dash-menu:checked ~ .dash-sidebar {
+    transform: translateX(0);
+  }
+
+  body:has(#dash-menu:checked) {
+    overflow: hidden;
+  }
+
+  .dash-close {
+    display: inline-flex;
+  }
+
+  .dash-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1001;
+    background: rgba(10, 15, 61, 0.35);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  #dash-menu:checked ~ .dash-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .dash-main {
+    margin-left: 0;
+  }
+
+  .dash-header {
+    justify-content: space-between;
+    height: 64px;
+    padding: 0 14px;
+  }
+
+  .dash-header-logo {
+    display: block;
+  }
+
+  .dash-hamburger {
+    display: flex;
+  }
+
+  /* icon-only profile on mobile; dropdown header ke hisaab se set hota hai */
+  .dash-profile {
+    position: static;
+  }
+
+  .dash-profile-btn {
+    height: auto;
+    padding: 0;
+    background: transparent;
+  }
+
+  .dash-profile-name,
+  .dash-layout .dash-chevron {
+    display: none;
+  }
+
+  .dash-dropdown {
+    top: calc(100% + 6px);
+    right: 8px;
+    width: min(260px, calc(100vw - 16px));
+  }
+
+  .dash-content {
+    padding: 22px 14px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 380px) {
+  .dash-header {
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .dash-header-img {
+    height: 36px;
+  }
+
+  .dash-header-right {
+    gap: 6px;
+  }
+
+  .dash-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .dash-hamburger {
+    width: 34px;
+    height: 34px;
+  }
+
+  .dash-heading {
+    font-size: 21px;
+  }
+}
+
+/* Ultra-narrow screens (280px and below) */
+@media (max-width: 300px) {
+  .dash-header {
+    padding: 0 8px;
+    gap: 4px;
+  }
+
+  .dash-header-img {
+    height: 30px;
+  }
+
+  .dash-avatar,
+  .dash-hamburger {
+    width: 30px;
+    height: 30px;
+  }
+
+  .dash-hamburger span {
+    width: 15px;
+  }
+
+  .dash-content {
+    padding: 18px 10px;
+  }
+
+  .dash-link {
+    padding: 11px 12px;
+    font-size: 14.5px;
+  }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .dash-sidebar,
+  .dash-overlay,
+  .dash-hamburger span,
+  .dash-link,
+  .dash-close {
+    transition-duration: 0.01ms !important;
+  }
+}
