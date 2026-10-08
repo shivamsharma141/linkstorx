@@ -23,11 +23,11 @@ const NAV_ITEMS = [
     href: '/dashboard/products',
     icon: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM12 8v8M8 12h8',
   },
-  {
-    label: 'Events',
-    href: '/dashboard/events',
-    icon: 'M7 3v3M17 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
-  },
+  // {
+  //   label: 'Events',
+  //   href: '/dashboard/events',
+  //   icon: 'M7 3v3M17 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
+  // },
   { label: 'Overview', href: '/dashboard/overview', icon: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
 ];
 

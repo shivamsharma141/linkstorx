@@ -3,7 +3,13 @@ import { getCurrentUser } from "@/app/lib/auth/auth";
 
 export default async function Home() {
   const user = await getCurrentUser();
-  const navUser = user ? { username: user.username, email: user.email } : null;
+
+  const navUser = user
+    ? {
+        username: user.username,
+        email: user.email,
+      }
+    : null;
 
   return (
     <>
@@ -12,7 +18,7 @@ export default async function Home() {
       {/* HERO SECTION */}
       <section className="hero">
         <div className="hero-content">
-          <span className="hero-badge">✨ SHOP • EVENTS • EXPLORE</span>
+          <span className="hero-badge">✨ SHOP • EXPLORE</span>
 
           <h1>
             Everything You Love,
@@ -20,13 +26,14 @@ export default async function Home() {
           </h1>
 
           <p>
-            Discover amazing products, exciting events, and unique experiences
-            from sellers and creators around you.
+            Discover amazing products and unique experiences from
+            sellers and creators around you.
           </p>
 
           <div className="hero-buttons">
-            <button className="primary-btn">Explore Products →</button>
-            <button className="secondary-btn">Discover Events</button>
+            <button className="primary-btn">
+              Explore Products →
+            </button>
           </div>
 
           <div className="hero-stats">
@@ -41,8 +48,8 @@ export default async function Home() {
             </div>
 
             <div>
-              <h3>100+</h3>
-              <p>Events</p>
+              <h3>1K+</h3>
+              <p>Customers</p>
             </div>
           </div>
         </div>
@@ -51,7 +58,7 @@ export default async function Home() {
           <div className="hero-card">
             <span>🔥 Trending</span>
             <h2>Discover Something New</h2>
-            <p>Shop products & explore experiences.</p>
+            <p>Shop products from amazing sellers.</p>
           </div>
 
           <div className="floating-card product-card">
@@ -59,14 +66,6 @@ export default async function Home() {
             <div>
               <strong>Trending Products</strong>
               <small>Explore now</small>
-            </div>
-          </div>
-
-          <div className="floating-card event-card">
-            🎟️
-            <div>
-              <strong>Live Events</strong>
-              <small>Find events near you</small>
             </div>
           </div>
         </div>
@@ -81,7 +80,9 @@ export default async function Home() {
             <p>Find exactly what you're looking for.</p>
           </div>
 
-          <button className="view-btn">View All →</button>
+          <button className="view-btn">
+            View All →
+          </button>
         </div>
 
         <div className="categories">
@@ -114,12 +115,6 @@ export default async function Home() {
             <h3>Art & Crafts</h3>
             <p>700+ Products</p>
           </div>
-
-          <div className="category">
-            <div className="category-icon">🎟️</div>
-            <h3>Events</h3>
-            <p>100+ Events</p>
-          </div>
         </div>
       </section>
 
@@ -132,7 +127,9 @@ export default async function Home() {
             <p>Handpicked products from our sellers.</p>
           </div>
 
-          <button className="view-btn">View All →</button>
+          <button className="view-btn">
+            View All →
+          </button>
         </div>
 
         <div className="products-grid">
@@ -186,66 +183,6 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* EVENTS */}
-      <section className="events-section">
-        <div className="section-header">
-          <div>
-            <span className="section-label">EXPERIENCES</span>
-            <h2>Discover Events</h2>
-            <p>Go beyond shopping. Discover what's happening around you.</p>
-          </div>
-
-          <button className="view-btn">Explore Events →</button>
-        </div>
-
-        <div className="events-grid">
-          <div className="event">
-            <div className="event-image">🎵</div>
-
-            <div className="event-info">
-              <span>Music</span>
-              <h3>Live Music Night</h3>
-              <p>📍 Delhi • 📅 28 Sep</p>
-
-              <div className="event-bottom">
-                <strong>₹499 onwards</strong>
-                <button>View Event</button>
-              </div>
-            </div>
-          </div>
-
-          <div className="event">
-            <div className="event-image">🎨</div>
-
-            <div className="event-info">
-              <span>Workshop</span>
-              <h3>Creative Art Workshop</h3>
-              <p>📍 Gurgaon • 📅 30 Sep</p>
-
-              <div className="event-bottom">
-                <strong>₹799 onwards</strong>
-                <button>View Event</button>
-              </div>
-            </div>
-          </div>
-
-          <div className="event">
-            <div className="event-image">💻</div>
-
-            <div className="event-info">
-              <span>Technology</span>
-              <h3>Tech & Startup Meetup</h3>
-              <p>📍 Noida • 📅 5 Oct</p>
-
-              <div className="event-bottom">
-                <strong>₹299 onwards</strong>
-                <button>View Event</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* SELLER CTA */}
       <section className="seller-section">
         <div>
@@ -254,8 +191,8 @@ export default async function Home() {
           <h2>Turn Your Products Into Opportunities.</h2>
 
           <p>
-            Join LinkStorX and showcase your products to customers looking for
-            something new.
+            Join LinkStorX and showcase your products to customers
+            looking for something new.
           </p>
 
           <button className="primary-btn">
@@ -274,42 +211,44 @@ export default async function Home() {
       <section className="section">
         <div className="center-heading">
           <span className="section-label">WHY LINKSTORX</span>
+
           <h2>More Than Just Shopping</h2>
+
           <p>
-            A place where shopping, discovery and experiences come together.
+            A place where shopping and discovery come together.
           </p>
         </div>
 
         <div className="features">
           <div className="feature">
             <div>🛒</div>
-            <h3>Discover Products</h3>
-            <p>
-              Explore products from different sellers and discover new brands.
-            </p>
-          </div>
 
-          <div className="feature">
-            <div>🎟️</div>
-            <h3>Find Events</h3>
+            <h3>Discover Products</h3>
+
             <p>
-              Discover interesting events, workshops and experiences.
+              Explore products from different sellers and discover
+              new brands.
             </p>
           </div>
 
           <div className="feature">
             <div>🚀</div>
+
             <h3>Support Sellers</h3>
+
             <p>
-              Give growing businesses a platform to showcase their products.
+              Give growing businesses a platform to showcase their
+              products.
             </p>
           </div>
 
           <div className="feature">
             <div>✨</div>
+
             <h3>Explore More</h3>
+
             <p>
-              One platform to discover products, people and experiences.
+              One platform to discover products, people and brands.
             </p>
           </div>
         </div>
@@ -322,8 +261,8 @@ export default async function Home() {
         <h2>Don't Miss What's Next.</h2>
 
         <p>
-          Get updates about new products, events and exciting things happening
-          on LinkStorX.
+          Get updates about new products and exciting things
+          happening on LinkStorX.
         </p>
 
         <div className="newsletter-form">
@@ -343,9 +282,7 @@ export default async function Home() {
             LinkStor<span>X</span>
           </h2>
 
-          <p>
-            Shop. Events. Explore.
-          </p>
+          <p>Shop. Explore.</p>
         </div>
 
         <div className="footer-links">
@@ -353,7 +290,6 @@ export default async function Home() {
             <h4>Marketplace</h4>
             <a href="#">Products</a>
             <a href="#">Categories</a>
-            <a href="#">Events</a>
           </div>
 
           <div>
