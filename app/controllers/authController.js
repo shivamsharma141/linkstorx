@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import {
   registerUser,
+  resendSignupCode,
+  verifySignup,
   loginUser,
   sendPasswordReset,
   verifyPasswordResetCode,
@@ -45,29 +47,65 @@ function handleAuthError(error) {
   );
 }
 
-/* ---------------- REGISTER ---------------- */
+/* ---------------- SAFE JSON BODY ---------------- */
 
-export async function registerController(request) {
+// Galat / khali JSON par 500 ki jagah 400 milta hai
+async function readJsonBody(request) {
   try {
     const body = await request.json();
 
-    const { user, token } =
-      await registerUser(body);
+    if (body && typeof body === "object") {
+      return body;
+    }
+  } catch {}
 
-    const response = NextResponse.json(
+  const error = new Error("Invalid request.");
+  error.statusCode = 400;
+  throw error;
+}
+
+/* ---------------- REGISTER / RESEND ---------------- */
+
+export async function registerController(request) {
+  try {
+    const body = await readJsonBody(request);
+
+    // Resend: isi route par { action: "resend", email }
+    if (body.action === "resend") {
+      const { email } = await resendSignupCode(body.email);
+
+      return NextResponse.json(
+        {
+          success: true,
+          needsVerification: true,
+          message: "A new verification code has been sent.",
+          email,
+        },
+        {
+          status: 200,
+        }
+      );
+    }
+
+    // Sirf username, email, password pass hote hain. role kabhi nahi.
+    const { email } = await registerUser({
+      username: body.username,
+      email: body.email,
+      password: body.password,
+    });
+
+    // Cookie nahi, pehle email verify hoga
+    return NextResponse.json(
       {
         success: true,
-        message: "Account created successfully.",
-        user,
+        needsVerification: true,
+        message: "Verification code sent to your email.",
+        email,
       },
       {
-        status: 201,
+        status: 200,
       }
     );
-
-    setAuthCookie(response, token);
-
-    return response;
   } catch (error) {
     return handleAuthError(error);
   }
@@ -77,16 +115,21 @@ export async function registerController(request) {
 
 export async function loginController(request) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
 
-    const { user, token } =
-      await loginUser(body);
+    // Sirf identifier aur password pass hote hain
+    const { user, isAdmin, token } = await loginUser({
+      identifier: body.identifier,
+      password: body.password,
+    });
 
     const response = NextResponse.json(
       {
         success: true,
         message: "Login successful.",
         user,
+        // Server-side computed (DB role + ADMIN_EMAIL). Sirf redirect UX ke liye.
+        isAdmin,
       },
       {
         status: 200,
@@ -125,7 +168,7 @@ export function logoutController(request) {
 
 export async function forgotPasswordController(request) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
 
     await sendPasswordReset(body.email);
 
@@ -148,8 +191,25 @@ export async function forgotPasswordController(request) {
 
 export async function verifyCodeController(request) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
 
+    // Signup ka email verification
+    if (body.purpose === "signup") {
+      await verifySignup(body.email, body.code);
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: "Email verified successfully.",
+          email: String(body.email).trim().toLowerCase(),
+        },
+        {
+          status: 200,
+        }
+      );
+    }
+
+    // Forgot password ka code
     await verifyPasswordResetCode(
       body.email,
       body.code
@@ -173,7 +233,7 @@ export async function verifyCodeController(request) {
 
 export async function resetPasswordController(request) {
   try {
-    const body = await request.json();
+    const body = await readJsonBody(request);
 
     await resetPassword(
       body.email,

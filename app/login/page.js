@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import './login.css';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PENDING_KEY = 'ls_pending_action'; // NEW — same key the store uses
+const PENDING_KEY = 'ls_pending_action';
+
+const OTP_LIFETIME_MS = 15 * 60 * 1000;
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 const IconBack = () => (
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -55,9 +58,7 @@ const IconClose = () => (
   </svg>
 );
 
-/* NEW — reads ?returnTo= and only accepts safe, same-site relative paths.
-   Accepts:  /shivam/store   /rahul/store?category=shoes
-   Rejects:  https://evil.com   //evil.com   /\evil.com   /login...   control chars */
+/* Reads ?returnTo= and only accepts safe, same-site relative paths. */
 function getSafeReturnTo() {
   if (typeof window === 'undefined') return null;
 
@@ -89,6 +90,19 @@ export default function LoginPage() {
   const [signupStatus, setSignupStatus] = useState('idle');
   const [signupMessage, setSignupMessage] = useState('');
 
+  // Signup OTP step
+  const [signupStep, setSignupStep] = useState('form'); // 'form' | 'otp'
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpStatus, setOtpStatus] = useState('idle'); // idle | loading | error | success
+  const [otpDone, setOtpDone] = useState(false); // sirf tab true jab email verify ho chuka ho
+  const [otpMessage, setOtpMessage] = useState('');
+  const [otpExpiresAt, setOtpExpiresAt] = useState(0);
+  const [resendAvailableAt, setResendAvailableAt] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  const redirectTimerRef = useRef(null);
+
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotStep, setForgotStep] = useState('email');
   const [forgotEmail, setForgotEmail] = useState('');
@@ -100,7 +114,7 @@ export default function LoginPage() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(300);
 
-  // NEW — /login opened manually (no returnTo): drop any stale shopping intent
+  // /login opened manually (no returnTo): drop any stale shopping intent
   useEffect(() => {
     if (!getSafeReturnTo()) {
       try {
@@ -117,16 +131,33 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [forgotOpen, forgotStep, secondsLeft]);
 
+  // Signup OTP countdown tick (timestamps se calculate hota hai, isliye accurate rehta hai)
+  useEffect(() => {
+    if (signupStep !== 'otp') return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [signupStep]);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
+
+  const otpSecondsLeft = Math.max(0, Math.ceil((otpExpiresAt - now) / 1000));
+  const resendSecondsLeft = Math.max(0, Math.ceil((resendAvailableAt - now) / 1000));
+
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // CHANGED — Back returns to the store if we came from one
+  // Back returns to the store if we came from one
   const goHome = () => router.push(getSafeReturnTo() || '/');
 
-  // NEW — shared post-auth redirect (login + signup)
+  // Shared post-auth redirect (login)
   const goAfterAuth = () => router.replace(getSafeReturnTo() || '/dashboard');
 
   const switchTab = (tab) => {
@@ -151,6 +182,7 @@ export default function LoginPage() {
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
+    if (loginStatus === 'loading') return;
     const errors = validateLogin();
     setLoginErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -174,7 +206,13 @@ export default function LoginPage() {
 
       setLoginStatus('success');
       setLoginMessage('Login successful. Redirecting...');
-      goAfterAuth(); // CHANGED (was router.push('/dashboard'))
+
+      // Redirect sirf UX hai. Asli security server par hai:
+      // isAdmin server ne DB role + ADMIN_EMAIL se nikala hai,
+      // aur admin page khud requireAdmin() se protected hai.
+      // NOTE: '/admin' ko apne asli admin route se badal lena.
+      if (data.isAdmin === true) router.replace('/admin');
+      else goAfterAuth();
     } catch {
       setLoginStatus('error');
       setLoginMessage('Something went wrong. Please try again.');
@@ -193,6 +231,8 @@ export default function LoginPage() {
       errors.username = 'Username is required.';
     } else if (signupData.username.length < 3) {
       errors.username = 'Username must be at least 3 characters.';
+    } else if (signupData.username.length > 30) {
+      errors.username = 'Username must be at most 30 characters.';
     } else if (!USERNAME_PATTERN.test(signupData.username)) {
       errors.username = 'Only letters, numbers and underscores are allowed.';
     }
@@ -205,6 +245,8 @@ export default function LoginPage() {
 
     if (!signupData.password) {
       errors.password = 'Password is required.';
+    } else if (signupData.password.length > 128) {
+      errors.password = 'Password is too long.';
     } else {
       const problems = [];
       if (signupData.password.length < 8) problems.push('8 characters');
@@ -224,8 +266,32 @@ export default function LoginPage() {
     return errors;
   };
 
+  const resetOtpState = () => {
+    setSignupStep('form');
+    setOtpCode('');
+    setOtpDone(false);
+    setOtpStatus('idle');
+    setOtpMessage('');
+    setOtpExpiresAt(0);
+    setResendAvailableAt(0);
+    setResendLoading(false);
+  };
+
+  // OTP step se wapas signup form par (form data safe rehta hai)
+  const backToSignupForm = (message) => {
+    resetOtpState();
+    if (message) {
+      setSignupStatus('error');
+      setSignupMessage(message);
+    } else {
+      setSignupStatus('idle');
+      setSignupMessage('');
+    }
+  };
+
   const handleSignupSubmit = async (e) => {
     e.preventDefault();
+    if (signupStatus === 'loading') return;
     const errors = validateSignup();
     setSignupErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -251,12 +317,131 @@ export default function LoginPage() {
         return;
       }
 
-      setSignupStatus('success');
-      setSignupMessage('Account created. Redirecting...');
-      goAfterAuth(); // CHANGED (was router.push('/dashboard'))
+      if (!data.needsVerification) {
+        setSignupStatus('error');
+        setSignupMessage('Something went wrong. Please try again.');
+        return;
+      }
+
+      // Dashboard par redirect NAHI: OTP verification step dikhao
+      const startedAt = Date.now();
+      setOtpEmail(data.email || signupData.email.trim().toLowerCase());
+      setOtpCode('');
+      setOtpDone(false);
+      setOtpStatus('success');
+      setOtpMessage(data.message || 'Verification code sent to your email.');
+      setOtpExpiresAt(startedAt + OTP_LIFETIME_MS);
+      setResendAvailableAt(startedAt + RESEND_COOLDOWN_MS);
+      setNow(startedAt);
+      setSignupStatus('idle');
+      setSignupMessage('');
+      setSignupStep('otp');
     } catch {
       setSignupStatus('error');
       setSignupMessage('Something went wrong. Please try again.');
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (otpStatus === 'loading' || otpDone || resendLoading) return;
+
+    if (otpSecondsLeft <= 0) {
+      setOtpStatus('error');
+      setOtpMessage('Verification code has expired. Please request a new code.');
+      return;
+    }
+
+    if (!/^\d{6}$/.test(otpCode)) {
+      setOtpStatus('error');
+      setOtpMessage('Enter the 6-digit verification code.');
+      return;
+    }
+
+    setOtpStatus('loading');
+    setOtpMessage('');
+
+    try {
+      const res = await fetch('/api/auth/verifyCode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpEmail, code: otpCode, purpose: 'signup' }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        // Attempts khatam (429) ya duplicate (409): is signup ko dobara shuru karna padega
+        if (res.status === 429 || res.status === 409) {
+          backToSignupForm(data.message || 'Please sign up again.');
+          return;
+        }
+        setOtpStatus('error');
+        setOtpMessage(data.message || 'Invalid verification code.');
+        setOtpCode('');
+        return;
+      }
+
+      setOtpDone(true);
+      setOtpStatus('success');
+      setOtpMessage('Email verified successfully. Taking you to login...');
+
+      const verifiedEmail = otpEmail;
+      redirectTimerRef.current = setTimeout(() => {
+        resetOtpState();
+        setSignupData({ username: '', email: '', password: '', confirmPassword: '' });
+        setSignupErrors({});
+        setSignupStatus('idle');
+        setSignupMessage('');
+        setLoginData({ identifier: verifiedEmail, password: '' });
+        setLoginErrors({});
+        setLoginStatus('success');
+        setLoginMessage('Email verified. Log in with your new account.');
+        setActiveTab('login');
+      }, 1500);
+    } catch {
+      setOtpStatus('error');
+      setOtpMessage('Something went wrong. Please try again.');
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendLoading || otpStatus === 'loading' || otpDone) return;
+    if (resendSecondsLeft > 0) return;
+
+    setResendLoading(true);
+    setOtpMessage('');
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resend', email: otpEmail }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        // Pending signup nahi mila (expire/delete): form par wapas
+        if (res.status === 404 || res.status === 409) {
+          backToSignupForm(data.message || 'Please sign up again.');
+          return;
+        }
+        setOtpStatus('error');
+        setOtpMessage(data.message || 'Unable to resend the code.');
+        return;
+      }
+
+      const startedAt = Date.now();
+      setOtpCode('');
+      setOtpExpiresAt(startedAt + OTP_LIFETIME_MS);
+      setResendAvailableAt(startedAt + RESEND_COOLDOWN_MS);
+      setNow(startedAt);
+      setOtpStatus('success');
+      setOtpMessage('A new verification code has been sent to your email.');
+    } catch {
+      setOtpStatus('error');
+      setOtpMessage('Something went wrong. Please try again.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -373,15 +558,29 @@ export default function LoginPage() {
     }
   };
 
+  const isOtpStep = activeTab === 'signup' && signupStep === 'otp';
+
   return (
     <div className="auth-page">
       {/* Left side — login / signup form */}
       <div className="auth-form-section">
         <div className="auth-card">
           <div className="auth-card-header">
-            <span className="auth-small-title">WELCOME BACK</span>
-            <h2>{activeTab === 'login' ? 'Sign in to LinkStorX' : 'Create your account'}</h2>
-            <p>{activeTab === 'login' ? 'Enter your details to continue.' : 'Start building your digital space today.'}</p>
+            <span className="auth-small-title">{isOtpStep ? 'ALMOST THERE' : 'WELCOME BACK'}</span>
+            <h2>
+              {isOtpStep
+                ? 'Verify your email'
+                : activeTab === 'login'
+                  ? 'Sign in to LinkStorX'
+                  : 'Create your account'}
+            </h2>
+            <p>
+              {isOtpStep
+                ? 'Enter the 6-digit code to finish creating your account.'
+                : activeTab === 'login'
+                  ? 'Enter your details to continue.'
+                  : 'Start building your digital space today.'}
+            </p>
           </div>
 
           <div className="auth-tabs">
@@ -452,7 +651,7 @@ export default function LoginPage() {
             </form>
           )}
 
-          {activeTab === 'signup' && (
+          {activeTab === 'signup' && signupStep === 'form' && (
             <form className="auth-form" onSubmit={handleSignupSubmit} noValidate>
               <div className="auth-field">
                 <label>Username</label>
@@ -528,6 +727,88 @@ export default function LoginPage() {
 
               <button type="submit" className="auth-submit-btn" disabled={signupStatus === 'loading'}>
                 {signupStatus === 'loading' ? <span className="auth-spinner" /> : (<>Create Account<span>→</span></>)}
+              </button>
+            </form>
+          )}
+
+          {activeTab === 'signup' && signupStep === 'otp' && (
+            <form className="auth-form" onSubmit={handleVerifyOtp} noValidate>
+              <div className="otp-notice">
+                <span className="otp-notice-icon"><IconMail /></span>
+                <div className="otp-notice-text">
+                  <strong>Verification code sent to your email.</strong>
+                  <span className="otp-email">{otpEmail}</span>
+                </div>
+              </div>
+
+              <div className="auth-field">
+                <label>Verification code</label>
+                <input
+                  className="code-input"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  disabled={otpStatus === 'loading' || otpDone}
+                />
+              </div>
+
+              <div className={otpSecondsLeft === 0 ? 'timer expired' : 'timer'}>
+                {otpSecondsLeft === 0 ? 'Code expired' : `Code expires in ${formatTime(otpSecondsLeft)}`}
+              </div>
+
+              {otpMessage && otpStatus === 'success' && (
+                <div className="auth-status-message auth-status-success">{otpMessage}</div>
+              )}
+              {otpMessage && otpStatus === 'error' && (
+                <div className="auth-status-message auth-status-error">{otpMessage}</div>
+              )}
+
+              <p className="auth-error-text" style={{ color: '#64748b', textAlign: 'center' }}>
+                Check your spam folder if you don&apos;t see the email.
+              </p>
+
+              <button
+                type="submit"
+                className="auth-submit-btn"
+                disabled={
+                  otpStatus === 'loading' ||
+                  otpDone ||
+                  resendLoading ||
+                  otpSecondsLeft === 0
+                }
+              >
+                {otpStatus === 'loading' ? <span className="auth-spinner" /> : (<>Verify Email<span>→</span></>)}
+              </button>
+
+              <button
+                type="button"
+                className="resend-button"
+                onClick={handleResendOtp}
+                disabled={
+                  resendLoading ||
+                  otpStatus === 'loading' ||
+                  otpDone ||
+                  resendSecondsLeft > 0
+                }
+              >
+                {resendLoading
+                  ? 'Sending...'
+                  : resendSecondsLeft > 0
+                    ? `Resend code in ${resendSecondsLeft}s`
+                    : 'Resend code'}
+              </button>
+
+              <button
+                type="button"
+                className="otp-back-btn"
+                onClick={() => backToSignupForm()}
+                disabled={otpStatus === 'loading' || otpDone || resendLoading}
+              >
+                ← Use a different email
               </button>
             </form>
           )}

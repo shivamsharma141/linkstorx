@@ -7,7 +7,10 @@ export async function GET() {
   const user = await getCurrentUser();
 
   return NextResponse.json(
-    { authenticated: Boolean(user) },
+    {
+      authenticated: Boolean(user),
+      isAdmin: user?.role === "admin",
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

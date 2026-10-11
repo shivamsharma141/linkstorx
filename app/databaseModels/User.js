@@ -24,6 +24,12 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
 
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+
     resetCodeHash: {
       type: String,
       select: false,

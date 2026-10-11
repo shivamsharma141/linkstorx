@@ -133,10 +133,40 @@
   color: #0a0f3d;
 }
 
+/* ---------- Subscription button (sidebar ke sabse neeche) ---------- */
 
+.dash-upgrade {
+  margin-top: auto;
+  padding: 12px 12px 16px;
+}
+
+.dash-layout .dash-upgrade-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(120deg, #1a2fd6 0%, #2f6bff 60%, #00b4ff 100%);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 8px 20px rgba(26, 47, 214, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dash-layout .dash-upgrade-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(26, 47, 214, 0.38);
+}
+
+.dash-layout .dash-upgrade-btn svg path {
+  fill: #ffd84d;
+  stroke: #ffd84d;
+}
 
 .dash-sidebar-footer {
-  margin-top: auto;
   padding: 14px 18px 22px;
   border-top: 1px solid rgba(10, 15, 61, 0.08);
   font-size: 12px;
@@ -514,6 +544,11 @@
     padding: 11px 12px;
     font-size: 14.5px;
   }
+
+  .dash-layout .dash-upgrade-btn {
+    padding: 12px;
+    font-size: 14px;
+  }
 }
 
 /* Respect reduced-motion preferences */
@@ -522,7 +557,8 @@
   .dash-overlay,
   .dash-hamburger span,
   .dash-link,
-  .dash-close {
+  .dash-close,
+  .dash-layout .dash-upgrade-btn {
     transition-duration: 0.01ms !important;
   }
 }

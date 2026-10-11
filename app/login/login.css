@@ -601,6 +601,11 @@ border-color: #1f6fff;
 box-shadow: 0 0 0 4px rgba(31, 111, 255, 0.1);
 }
 
+.code-input:disabled {
+opacity: 0.7;
+cursor: not-allowed;
+}
+
 .timer {
 text-align: center;
 margin: 10px 0 18px;
@@ -622,6 +627,89 @@ color: #1f6fff;
 font-size: 12px;
 font-weight: 800;
 cursor: pointer;
+}
+
+/* ================= OTP STEP (SIGNUP) ================= */
+
+.auth-form .timer {
+margin: 0;
+}
+
+.auth-form .resend-button {
+margin-top: 0;
+padding: 4px 0;
+}
+
+.resend-button:disabled {
+color: #94a3b8;
+cursor: not-allowed;
+}
+
+.otp-notice {
+display: flex;
+align-items: center;
+gap: 12px;
+padding: 14px 16px;
+border-radius: 14px;
+background: #eff6ff;
+border: 1px solid #dbeafe;
+}
+
+.otp-notice-icon {
+width: 40px;
+height: 40px;
+flex-shrink: 0;
+display: grid;
+place-items: center;
+border-radius: 12px;
+background: #ffffff;
+color: #1f6fff;
+}
+
+.otp-notice-icon svg {
+width: 20px;
+height: 20px;
+}
+
+.otp-notice-text {
+display: flex;
+flex-direction: column;
+gap: 3px;
+min-width: 0;
+}
+
+.otp-notice-text strong {
+color: #0a0f24;
+font-size: 12px;
+font-weight: 700;
+line-height: 1.4;
+}
+
+.otp-email {
+color: #1f6fff;
+font-size: 12px;
+font-weight: 700;
+overflow-wrap: anywhere;
+}
+
+.otp-back-btn {
+border: none;
+background: transparent;
+color: #64748b;
+font-size: 12px;
+font-weight: 700;
+cursor: pointer;
+padding: 4px 0;
+transition: 0.2s ease;
+}
+
+.otp-back-btn:hover:not(:disabled) {
+color: #1f6fff;
+}
+
+.otp-back-btn:disabled {
+opacity: 0.5;
+cursor: not-allowed;
 }
 
 /* ================= TABLET — 701px se 1024px tak RESPONSIVE ================= */
@@ -812,6 +900,11 @@ padding: 24px 16px;
 .code-input {
 font-size: 23px;
 letter-spacing: 6px;
+}
+
+.otp-notice {
+padding: 12px;
+gap: 10px;
 }
 }
 
