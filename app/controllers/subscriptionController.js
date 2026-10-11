@@ -27,6 +27,8 @@ function handleError(error) {
       message:
         statusCode === 500 ? "Something went wrong. Please try again." : error.message,
       code: error.code || undefined,
+      // TEMPORARY DEBUG: kaam hone ke baad ye line delete kar dena
+      debug: statusCode === 500 ? String(error?.message || error) : undefined,
     },
     statusCode
   );
