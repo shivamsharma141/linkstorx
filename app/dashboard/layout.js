@@ -14,11 +14,12 @@ const NAV_ITEMS = [
     href: '/dashboard/my-store',
     icon: 'M3 9l1.5-5h15L21 9M3 9c0 1.4 1.1 2.5 2.5 2.5S8 10.4 8 9c0 1.4 1.1 2.5 2.5 2.5h3C14.9 11.5 16 10.4 16 9c0 1.4 1.1 2.5 2.5 2.5S21 10.4 21 9M5 11.5V20h14v-8.5',
   },
-  {
-    label: 'Links',
-    href: '/dashboard/links',
-    icon: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
-  },
+  // Page abhi bana nahi, isliye 404 aa raha tha. Page banne ke baad uncomment karna.
+  // {
+  //   label: 'Links',
+  //   href: '/dashboard/links',
+  //   icon: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  // },
   {
     label: 'Add Products',
     href: '/dashboard/products',
@@ -29,7 +30,7 @@ const NAV_ITEMS = [
   //   href: '/dashboard/events',
   //   icon: 'M7 3v3M17 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z',
   // },
-  { label: 'Overview', href: '/dashboard/overview', icon: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
+  // { label: 'Overview', href: '/dashboard/overview', icon: 'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z' },
 ];
 
 export default async function DashboardLayout({ children }) {
