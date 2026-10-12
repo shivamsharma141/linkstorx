@@ -131,18 +131,17 @@ const ICON_BOLT = "M13 3L5 14h6l-1 7 8-11h-6z";
 const ICON_IMAGES = "M5 7h14v12H5zM8 4h11v3M9 15l3-3 4 4";
 const ICON_GRID = "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z";
 
+// health/wellness and pet icons removed (categories no longer supported)
 const CATEGORY_ICONS = [
   [/fashion|cloth/, "M8 4l-5 3 2 4 3-1v10h8V10l3 1 2-4-5-3a4 4 0 0 1-8 0z"],
   [/beauty|personal/, "M10 3h4v6h-4zM9 9h6v4H9zM8 13h8v8H8z"],
   [/electron/, "M4 15v-3a8 8 0 0 1 16 0v3M4 15h3v5H4zM17 15h3v5h-3z"],
   [/home|living/, "M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6"],
   [/grocery|food/, "M3 9h18l-2 11H5zM8 9l3-5M16 9l-3-5"],
-  [/health|well/, "M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11z"],
   [/sport|fitness/, "M3 10v4M6 8v8M18 8v8M21 10v4M6 12h12"],
   [/book|station/, "M5 4h5v16H5zM10 4h5v16h-5zM16 6l4 1-3 13-4-1"],
   [/toy|kid/, "M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM9 10h.01M15 10h.01M9 14a4 4 0 0 0 6 0"],
   [/auto|car/, "M4 16v-4l2-5h12l2 5v4M4 16h16M7 19v-3M17 19v-3"],
-  [/pet/, "M12 12c-3 0-5 3-4 5s3 1 4 1 3 1 4-1-1-5-4-5zM7 10h.01M17 10h.01M10 6h.01M14 6h.01"],
   [/hand|craft/, "M6 7h.01M6 17h.01M8 8l12 9M8 16L20 7"],
   [/gift|life/, "M4 9h16v4H4zM6 13v8h12v-8M12 9v12M12 9c-3 0-4-4-1.5-4.5S12 9 12 9zM12 9c3 0 4-4 1.5-4.5S12 9 12 9z"],
 ];
@@ -305,7 +304,9 @@ function Marketplace() {
   const reqId = useRef(0);
 
   const q = sp.get("q") || "";
-  const category = sp.get("category") || "";
+  // Old links like ?category=pet-supplies or ?category=health-wellness are ignored
+  const rawCategory = sp.get("category") || "";
+  const category = PRODUCT_CATEGORIES.some((c) => c.value === rawCategory) ? rawCategory : "";
   const sort = sp.get("sort") || "newest";
   const price = sp.get("price") || "";
   const featuredOnly = sp.get("featured") === "1";

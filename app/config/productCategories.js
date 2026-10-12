@@ -2,6 +2,11 @@
    CENTRALIZED PRODUCT CATEGORY CONFIGURATION
    Single source of truth. Do not duplicate this list
    anywhere else in the app — import it instead.
+
+   NOTE: Pet Supplies and Health & Wellness (medicine /
+   supplements / healthcare) are intentionally NOT included
+   because they are not supported by our payment partner
+   (Razorpay). Do not add them back.
 ========================================================= */
 
 export const PRODUCT_CATEGORIES = [
@@ -62,20 +67,9 @@ export const PRODUCT_CATEGORIES = [
       "Snacks",
       "Beverages",
       "Bakery",
-      "Organic & Health Foods",
+      "Organic Foods",
       "Spices & Condiments",
       "Sweets & Confectionery",
-    ],
-  },
-  {
-    value: "health-wellness",
-    label: "Health & Wellness",
-    subcategories: [
-      "Supplements",
-      "Fitness Nutrition",
-      "Personal Hygiene",
-      "Wellness Devices",
-      "Ayurveda & Herbal",
     ],
   },
   {
@@ -85,7 +79,7 @@ export const PRODUCT_CATEGORIES = [
       "Gym Equipment",
       "Sportswear",
       "Outdoor & Adventure",
-      "Yoga & Wellness",
+      "Yoga Gear",
       "Team Sports Gear",
     ],
   },
@@ -105,7 +99,7 @@ export const PRODUCT_CATEGORIES = [
     label: "Toys & Kids",
     subcategories: [
       "Toys",
-      "Baby Care",
+      "Baby Products",
       "Kids Fashion",
       "Learning & Educational",
       "Kids Furniture",
@@ -119,16 +113,6 @@ export const PRODUCT_CATEGORIES = [
       "Bike Accessories",
       "Tools & Equipment",
       "Cleaning & Care",
-    ],
-  },
-  {
-    value: "pet-supplies",
-    label: "Pet Supplies",
-    subcategories: [
-      "Pet Food",
-      "Pet Accessories",
-      "Pet Grooming",
-      "Pet Toys",
     ],
   },
   {
@@ -158,6 +142,10 @@ export const PRODUCT_CATEGORIES = [
     subcategories: ["General"],
   },
 ];
+
+/* Categories that were removed (not supported by Razorpay).
+   Used ONLY to hide old products that still carry these values. */
+export const REMOVED_CATEGORY_VALUES = ["pet-supplies", "health-wellness"];
 
 export const PRODUCT_CATEGORY_VALUES = PRODUCT_CATEGORIES.map(
   (category) => category.value
