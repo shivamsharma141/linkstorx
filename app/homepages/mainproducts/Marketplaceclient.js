@@ -100,7 +100,22 @@ const PRICES = [
   { value: "2500-", label: "Above ₹2,500" },
 ];
 
-const CAT_COLORS = ["#fee2e2", "#ffe4e6", "#dbeafe", "#d1fae5", "#fef3c7", "#cffafe", "#ede9fe", "#e0e7ff", "#ffedd5", "#dbeafe", "#fef9c3", "#fce7f3", "#f1f5f9"];
+// har category ka apna soft background + matching icon colour
+const CAT_TONES = [
+  ["#fee2e2", "#dc2626"],
+  ["#ffe4e6", "#e11d48"],
+  ["#dbeafe", "#2563eb"],
+  ["#d1fae5", "#059669"],
+  ["#fef3c7", "#d97706"],
+  ["#cffafe", "#0891b2"],
+  ["#ede9fe", "#7c3aed"],
+  ["#e0e7ff", "#4f46e5"],
+  ["#ffedd5", "#ea580c"],
+  ["#dbeafe", "#2563eb"],
+  ["#fef9c3", "#ca8a04"],
+  ["#fce7f3", "#db2777"],
+  ["#f1f5f9", "#475569"],
+];
 
 /* ---------------- icons ---------------- */
 
@@ -125,6 +140,8 @@ function IconPath({ d, ...props }) {
 const ICON_SEARCH = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4";
 const ICON_LEFT = "M15 18l-6-6 6-6";
 const ICON_RIGHT = "M9 18l6-6-6-6";
+const ICON_DOWN = "M6 9l6 6 6-6";
+const ICON_BAG = "M6 7h12l1 13H5zM9 7a3 3 0 0 1 6 0";
 const ICON_STORE = "M4 9l1.5-5h13L20 9M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9M5 12v8h14v-8";
 const ICON_CART = "M3 4h2l.4 2M7 13h10l3-7H6.4M7 13l-1.6-7M7 13l-1.6 7h11.2";
 const ICON_BOLT = "M13 3L5 14h6l-1 7 8-11h-6z";
@@ -201,26 +218,35 @@ function ProductCard({ product, onAdd, onBuy }) {
   };
 
   return (
-    <article className="mp-card">
+    <article className={out ? "mp-card mp-card-out" : "mp-card"}>
       <Link href={href} className="mp-media" aria-label={product.name}>
         {!loaded && !broken && images.length > 0 && <span className="mp-skel mp-media-skel" />}
+
         {images.length > 0 && !broken ? (
-          <img
-            ref={imgRef}
-            key={images[idx]}
-            src={images[idx]}
-            alt={product.name}
-            loading="lazy"
-            className="mp-img"
-            onLoad={() => setLoaded(true)}
-            onError={() => setBroken(true)}
-          />
+          <>
+            {/* blurred copy fills empty space so the real image can show fully (no cropping) */}
+            {loaded && <img src={images[idx]} alt="" aria-hidden="true" className="mp-img-bg" />}
+            <img
+              ref={imgRef}
+              key={images[idx]}
+              src={images[idx]}
+              alt={product.name}
+              loading="lazy"
+              decoding="async"
+              className="mp-img"
+              onLoad={() => setLoaded(true)}
+              onError={() => setBroken(true)}
+            />
+          </>
         ) : (
-          <span className="mp-noimg"><IconPath d={ICON_IMAGES} /></span>
+          <span className="mp-noimg">
+            <IconPath d={ICON_IMAGES} />
+            <small>No image</small>
+          </span>
         )}
 
-        {product.featured && <span className="mp-badge">Featured</span>}
-        {out && <span className="mp-badge mp-badge-out">Sold out</span>}
+        {product.featured && <span className="mp-badge">★ Featured</span>}
+        {out && <span className="mp-soldout"><b>SOLD OUT</b></span>}
 
         {images.length > 1 && (
           <>
@@ -231,7 +257,7 @@ function ProductCard({ product, onAdd, onBuy }) {
               <IconPath d={ICON_RIGHT} />
             </button>
             <span className="mp-imgcount" aria-label={`${images.length} images`}>
-              <IconPath d={ICON_IMAGES} /> {images.length}
+              <IconPath d={ICON_IMAGES} /> {idx + 1}/{images.length}
             </span>
           </>
         )}
@@ -262,15 +288,15 @@ function ProductCard({ product, onAdd, onBuy }) {
         </Link>
 
         <div className="mp-actions">
-          <Link href={storeHref} className="mp-btn mp-btn-ghost mp-btn-wide">
-            <IconPath d={ICON_STORE} className="mp-btn-ic" /> View Store
-          </Link>
           <button type="button" className="mp-btn mp-btn-outline" disabled={out} onClick={() => onAdd(product)}>
             <IconPath d={ICON_CART} className="mp-btn-ic" /> Add to Cart
           </button>
           <button type="button" className="mp-btn mp-btn-solid" disabled={out} onClick={() => onBuy(product)}>
             <IconPath d={ICON_BOLT} className="mp-btn-ic" /> Buy Now
           </button>
+          <Link href={storeHref} className="mp-btn mp-btn-ghost mp-btn-wide">
+            <IconPath d={ICON_STORE} className="mp-btn-ic" /> View Store
+          </Link>
         </div>
       </div>
     </article>
@@ -482,9 +508,9 @@ function Marketplace() {
           <div className="mp-hero-text">
             <h1>
               Discover Amazing
-              <span>Products</span>
+              <span>Products.</span>
             </h1>
-            <p>Shop from unique creators, small businesses and independent stores on LinkStorX.</p>
+            <p className="mp-hero-sub">Shop from unique creators, small businesses and independent stores on LinkStorX.</p>
 
             <form className="mp-search" role="search" onSubmit={(e) => { e.preventDefault(); setParams({ q: searchText.trim() }); }}>
               <input
@@ -507,12 +533,21 @@ function Marketplace() {
             </ul>
           </div>
 
-          <div className="mp-promo" aria-hidden="true">
-            <b>SHOP</b>
-            <b>EXPLORE</b>
-            <b>SUPPORT</b>
-            <b>CREATORS</b>
-            <small>Discover stores and products from creators across LinkStorX.</small>
+          <div className="mp-promo">
+            <a href="#all-products" className="mp-promo-float">
+              <span className="mp-promo-ic"><IconPath d={ICON_BAG} /></span>
+              <span>
+                <b>Trending Products</b>
+                <small>Explore now</small>
+              </span>
+            </a>
+            <div className="mp-promo-card">
+              <b>SHOP</b>
+              <b>EXPLORE</b>
+              <b>SUPPORT</b>
+              <b>CREATORS</b>
+              <small>Discover stores and products from creators across LinkStorX.</small>
+            </div>
           </div>
         </div>
       </header>
@@ -524,20 +559,23 @@ function Marketplace() {
               <span className="mp-cat-circle"><IconPath d={ICON_GRID} /></span>
               <span className="mp-cat-label">All</span>
             </button>
-            {PRODUCT_CATEGORIES.map((c, i) => (
-              <button
-                key={c.value}
-                type="button"
-                className={category === c.value ? "mp-cat mp-cat-on" : "mp-cat"}
-                aria-pressed={category === c.value}
-                onClick={() => setParams({ category: c.value })}
-              >
-                <span className="mp-cat-circle" style={{ background: CAT_COLORS[i % CAT_COLORS.length] }}>
-                  <IconPath d={categoryIcon(c.value)} />
-                </span>
-                <span className="mp-cat-label">{c.label}</span>
-              </button>
-            ))}
+            {PRODUCT_CATEGORIES.map((c, i) => {
+              const active = category === c.value;
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  className={active ? "mp-cat mp-cat-on" : "mp-cat"}
+                  aria-pressed={active}
+                  onClick={() => setParams({ category: c.value })}
+                >
+                  <span className="mp-cat-circle" style={{ "--cat-bg": CAT_TONES[i % CAT_TONES.length][0], "--cat-fg": CAT_TONES[i % CAT_TONES.length][1] }}>
+                    <IconPath d={categoryIcon(c.value)} />
+                  </span>
+                  <span className="mp-cat-label">{c.label}</span>
+                </button>
+              );
+            })}
           </nav>
           <button type="button" className="mp-cat-next" aria-label="Scroll categories" onClick={() => scrollCats(1)}>
             <IconPath d={ICON_RIGHT} />
@@ -558,25 +596,34 @@ function Marketplace() {
             </div>
 
             <div className="mp-selects">
-              <select aria-label="Price" value={price} onChange={(e) => setParams({ price: e.target.value })}>
-                <option value="">Price</option>
-                {PRICES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
+              <div className="mp-select">
+                <select aria-label="Price" value={price} onChange={(e) => setParams({ price: e.target.value })}>
+                  <option value="">Price</option>
+                  {PRICES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+                <IconPath d={ICON_DOWN} />
+              </div>
 
-              <select aria-label="Category" value={category} onChange={(e) => setParams({ category: e.target.value })}>
-                <option value="">All Categories</option>
-                {PRODUCT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
+              <div className="mp-select">
+                <select aria-label="Category" value={category} onChange={(e) => setParams({ category: e.target.value })}>
+                  <option value="">All Categories</option>
+                  {PRODUCT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+                <IconPath d={ICON_DOWN} />
+              </div>
 
-              <select aria-label="Sort by" value={sort} onChange={(e) => setParams({ sort: e.target.value === "newest" ? "" : e.target.value })}>
-                {SORTS.map((s) => <option key={s.value} value={s.value}>Sort by: {s.label}</option>)}
-              </select>
+              <div className="mp-select mp-select-sort">
+                <select aria-label="Sort by" value={sort} onChange={(e) => setParams({ sort: e.target.value === "newest" ? "" : e.target.value })}>
+                  {SORTS.map((s) => <option key={s.value} value={s.value}>Sort by: {s.label}</option>)}
+                </select>
+                <IconPath d={ICON_DOWN} />
+              </div>
             </div>
           </div>
 
           {!loading && !error && total > 0 && (
             <p className="mp-count">
-              Showing {items.length} of {total.toLocaleString("en-IN")} products
+              Showing <b>{items.length}</b> of <b>{total.toLocaleString("en-IN")}</b> products
             </p>
           )}
 

@@ -75,6 +75,9 @@ export async function getSubscriptionSummary(userId) {
 
   const reached = used >= plan.productLimit;
 
+  // Expire hone par plan Free ban jata hai, isliye purana plan alag se bhejte hain
+  const expiredPlan = expired && subscription ? getPlan(subscription.plan) : null;
+
   return {
     planId: plan.id,
     planName: plan.name,
@@ -83,7 +86,10 @@ export async function getSubscriptionSummary(userId) {
     remaining: Math.max(0, plan.productLimit - used),
     reached,
     expired,
-    expiresAt: plan.id === "free" ? null : subscription.expiresAt.toISOString(),
+    expiredPlanId: expiredPlan ? expiredPlan.id : null,
+    expiredPlanName: expiredPlan ? expiredPlan.name : null,
+    // Active ho ya expired, subscription hai to date bhejo. Free (kabhi paid nahi liya) = null
+    expiresAt: subscription ? subscription.expiresAt.toISOString() : null,
     message: reached ? limitMessage(plan) : "",
   };
 }
@@ -199,7 +205,7 @@ async function applyPlanFromOrder(order) {
   const stillActive = Boolean(subscription && subscription.expiresAt > now);
   const samePlan = stillActive && subscription.plan === plan.id;
 
-  // Same plan renew = bacha hua time + naye din.  Upgrade = aaj se naye din.
+  // Same plan renew = bacha hua time + naye din.  Upgrade / expired ke baad = aaj se naye din.
   const base = samePlan ? subscription.expiresAt : now;
   const expiresAt = new Date(base.getTime() + plan.durationDays * DAY_MS);
   const startedAt = samePlan ? subscription.startedAt : now;

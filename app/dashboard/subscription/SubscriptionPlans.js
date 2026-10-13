@@ -78,6 +78,10 @@ export default function SubscriptionPlans({ plans, summary }) {
   const currentPlan = plans.find((p) => p.id === summary.planId) || plans[0];
   const locked = Boolean(busyPlan) || verifying;
 
+  // Plan expire hua hai (summary me planId tab 'free' hota hai)
+  const isExpired = Boolean(summary.expired);
+  const expiredName = summary.expiredPlanName || 'paid';
+
   /* ---------- payment ke baad server se verify ---------- */
 
   async function verifyPayment(response) {
@@ -186,6 +190,11 @@ export default function SubscriptionPlans({ plans, summary }) {
       };
     }
 
+    // Jo plan expire hua hai uska button "Renew Now"
+    if (isExpired && summary.expiredPlanId === plan.id) {
+      return { label: 'Renew Now', style: ui.style, disabled: false };
+    }
+
     if (summary.planId === plan.id) {
       return { label: 'Renew Plan', style: ui.style, disabled: false };
     }
@@ -208,20 +217,28 @@ export default function SubscriptionPlans({ plans, summary }) {
         <p className="sub-subtitle">Start for free and upgrade anytime. Your store, your products, your growth.</p>
       </div>
 
-      <div className={summary.reached ? 'sub-status sub-status-warn' : 'sub-status'}>
+      <div className={summary.reached || isExpired ? 'sub-status sub-status-warn' : 'sub-status'}>
         <p>
           <strong>{summary.planName} plan</strong>
           {' · '}
           {summary.used} of {summary.productLimit} products used
-          {summary.expiresAt && <> · Active until {formatDate(summary.expiresAt)}</>}
+          {summary.expiresAt && !isExpired && summary.planId !== 'free' && (
+            <> · Active until {formatDate(summary.expiresAt)}</>
+          )}
+          {summary.expiresAt && isExpired && (
+            <> · {expiredName} plan expired on {formatDate(summary.expiresAt)}</>
+          )}
         </p>
 
         {summary.reached && <p className="sub-status-note">{summary.message}</p>}
-
-        {summary.expired && !summary.reached && (
-          <p className="sub-status-note">Your paid plan has expired. Renew to get your full product limit back.</p>
-        )}
       </div>
+
+      {isExpired && !success && (
+        <div className="sub-alert" role="alert">
+          Bro, your {expiredName} subscription has expired. Please take a subscription again to get your full product
+          limit back.
+        </div>
+      )}
 
       {error && (
         <div className="sub-alert" role="alert">
