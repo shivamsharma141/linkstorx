@@ -778,6 +778,11 @@ textarea.pe-input {
   align-items: start;
 }
 
+/* desktop preview: right column wider so the 1280px page is readable */
+.prodedit-body-desktop {
+  grid-template-columns: minmax(0, 1fr) minmax(520px, 0.95fr);
+}
+
 .prodedit-form {
   display: flex;
   flex-direction: column;
@@ -1135,139 +1140,213 @@ textarea.pe-input {
 .prodedit-image-add svg { width: 18px; height: 18px; }
 
 /* =========================================================
-   LIVE PREVIEW (real iframe of the public product page)
+   LIVE PREVIEW (same style as Profile Editor)
 ========================================================= */
 
 .prodedit-preview {
   position: sticky;
   top: 20px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--pe-border);
+  border-radius: 14px;
+  box-shadow: var(--pe-shadow);
+  background:
+    radial-gradient(rgba(0, 102, 255, 0.10) 1px, transparent 1px),
+    linear-gradient(180deg, #eef4ff, #f8faff);
+  background-size: 18px 18px, 100% 100%;
+}
+
+.prodedit-preview-title { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
+.pv-sub { margin: 0; font-size: 12px; color: var(--pe-muted); }
+
+.pv-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pv-tools { display: flex; gap: 6px; }
+.pv-tools .pe-icon-btn { text-decoration: none; }
+.pv-tools .pe-icon-btn:hover svg { animation: pv-rotate 0.6s ease; }
+
+@keyframes pv-rotate { to { transform: rotate(360deg); } }
+
+/* Mobile / Desktop sliding pill */
+.pv-seg {
+  position: relative;
+  display: inline-flex;
+  background: #fff;
+  border: 1px solid var(--pe-border);
+  border-radius: 12px;
+  padding: 3px;
+  box-shadow: var(--pe-shadow);
+}
+
+.pv-seg-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 9px;
+  background: var(--pe-accent);
+  box-shadow: 0 4px 10px -3px rgba(37, 99, 235, 0.55);
+  transition: transform 0.35s cubic-bezier(.22, 1, .36, 1);
+}
+
+.pv-seg-pill-desktop { transform: translateX(100%); }
+
+.pv-seg button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 16px;
+  border-radius: 9px;
+  color: var(--pe-muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.pv-seg .pv-seg-active { color: #fff; font-weight: 600; }
+
+.pv-refresh { width: 100%; margin-top: 14px; }
+
+/* stage + devices */
+.pv-stage { display: flex; justify-content: center; margin-top: 22px; }
+.pv-device { position: relative; flex-shrink: 0; }
+
+.pv-device-mobile {
+  background: #0b1126;
+  border-radius: 44px;
+  padding: 12px;
+  box-shadow: 0 28px 50px -12px rgba(31, 27, 46, 0.45), inset 0 0 0 2px #2a3558;
+}
+
+.pv-device-mobile .pv-screen { border-radius: 33px; }
+
+.pv-notch {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 84px;
+  height: 22px;
+  border-radius: 999px;
+  background: #0b1126;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.pv-device-desktop {
   background: #fff;
   border: 1px solid var(--pe-border);
   border-radius: 14px;
-  padding: 18px;
-  box-shadow: var(--pe-shadow);
-  min-width: 0;
+  overflow: hidden;
+  box-shadow: 0 20px 40px -14px rgba(31, 27, 46, 0.25);
 }
 
-.prodedit-preview-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.pv-header {
+.pv-browser-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #f5f8ff;
+  border-bottom: 1px solid var(--pe-border);
 }
 
-.pv-device-toggle {
-  display: flex;
-  gap: 4px;
-}
+.pv-dots { display: inline-flex; gap: 6px; }
+.pv-dots i { width: 9px; height: 9px; border-radius: 50%; background: #cfd9ee; }
+.pv-dots i:nth-child(1) { background: #f87171; }
+.pv-dots i:nth-child(2) { background: #fbbf24; }
+.pv-dots i:nth-child(3) { background: #4ade80; }
 
-.pv-device-btn {
-  border: none;
-  background: transparent;
-  padding: 7px 12px;
-  border-radius: 8px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--pe-muted);
-  cursor: pointer;
-  transition: 0.15s ease;
-}
-
-.pv-device-btn:hover {
-  background: #f9fafb;
-  color: var(--pe-text);
-}
-
-.pv-device-active {
-  color: var(--pe-accent);
-  background: var(--pe-accent-soft);
-  font-weight: 600;
-}
-
-.pv-refresh {
-  width: 100%;
-  margin-bottom: 14px;
-}
-
-/* Full width: used to measure available space and to center the
-   (possibly narrower) device frame inside it. */
-.pv-frame-outer {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-.pv-frame {
-  position: relative;
-  flex-shrink: 0;
+.pv-url {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
   border: 1px solid var(--pe-border);
-  border-radius: 14px;
+  border-radius: 8px;
+  padding: 5px 11px;
+  font-size: 11px;
+  color: var(--pe-muted);
   overflow: hidden;
-  background: #f5f0e9;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Holds the iframe at its REAL desktop/mobile width, then is scaled
-   down with a CSS transform to fit the column (like a browser's
-   device toolbar). */
-.pv-frame-scale {
+/* screen: page notch ke neeche se start hota hai */
+.pv-screen { position: relative; overflow: hidden; background: #fff; }
+
+.pv-statusbar {
   position: absolute;
   top: 0;
   left: 0;
-  transform-origin: top left;
+  right: 0;
+  height: 36px; /* MOBILE_NOTCH_H ke same */
+  background: #fff;
+  z-index: 2;
+  pointer-events: none;
 }
 
-.pv-frame-iframe {
-  display: block;
-  border: none;
-  background: #f5f0e9;
-  scrollbar-width: none;
-}
+.pv-scale { position: absolute; top: 0; left: 0; transform-origin: top left; }
+.pv-device-mobile .pv-scale { top: 36px; }
 
-.pv-frame-iframe::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
+.pv-iframe { display: block; border: none; background: transparent; scrollbar-width: none; }
+.pv-iframe::-webkit-scrollbar { width: 0; height: 0; }
 
-.pv-frame-loading {
+.pv-msg {
   position: absolute;
   inset: 0;
   z-index: 1;
   display: flex;
+  flex-direction: column;
+  gap: 12px;
   align-items: center;
   justify-content: center;
-  background: #f5f0e9;
-  color: #9c8f7d;
-  font-size: 13px;
+  text-align: center;
+  padding: 24px;
+  background: #f3f7ff;
+  color: #9ca3af;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
-.pv-frame-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  height: 100%;
-  min-height: 260px;
-  padding: 24px;
-  text-align: center;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #9c8f7d;
+.pv-spin {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 3px solid var(--pe-accent-soft);
+  border-top-color: var(--pe-accent);
+  animation: pv-rotate 0.8s linear infinite;
 }
 
 /* =========================================================
    RESPONSIVE
 ========================================================= */
 
+@media (max-width: 1280px) {
+  .prodedit-body-desktop { grid-template-columns: minmax(0, 1fr) 460px; }
+}
+
 @media (max-width: 1100px) {
-  .prodedit-body { grid-template-columns: 1fr; }
-  .prodedit-preview { position: static; }
+  .prodedit-body,
+  .prodedit-body-desktop { grid-template-columns: 1fr; }
+  .prodedit-preview { position: static; order: -1; }
 }
 
 @media (max-width: 900px) {
@@ -1442,3 +1521,7 @@ textarea.pe-input {
     margin-left: auto;
   }
 }
+
+/* order settings spacing */
+.pe-label.os-label { margin-top: 18px; margin-bottom: 8px; }
+.os-note.os-note-spaced { margin-top: 14px; }

@@ -1,5 +1,10 @@
 import mongoose from "mongoose";
 
+/* Bio max 150 words. Words ka check business logic mein hota hai,
+   yahan maxlength sirf safety net hai (150 words < 1500 chars). */
+export const MAX_BIO_WORDS = 150;
+export const MAX_BIO_CHARS = 1500;
+
 const linkSchema = new mongoose.Schema(
   {
     title: {
@@ -128,7 +133,7 @@ const profileSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
-      maxlength: 300,
+      maxlength: MAX_BIO_CHARS,
     },
 
     profileImage: {
@@ -162,6 +167,28 @@ const profileSchema = new mongoose.Schema(
         type: String,
         default: "#2563eb",
       },
+      backgroundColor: {
+        type: String,
+        default: "#f5f0e9",
+      },
+    },
+
+    /*
+     * Publish state.
+     * false => draft: sirf owner preview mein dekh sakta hai.
+     * true  => live: public URL (profile + store) pe sab dekh sakte hain,
+     *          aur har save automatically live page update karta hai.
+     * Ek baar publish hone ke baad wapas draft nahi hota.
+     */
+    isPublished: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    publishedAt: {
+      type: Date,
+      default: null,
     },
   },
   {

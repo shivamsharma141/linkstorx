@@ -19,9 +19,12 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 // Real viewport sizes the preview iframe renders at,
 // then it is visually scaled down to fit the column.
 const DEVICE_SIZES = {
-  desktop: { width: 1280, height: 800 },
+  desktop: { width: 1280, height: 900 },
   mobile: { width: 390, height: 844 },
 };
+
+/* page notch ke NEECHE se start hota hai (CSS mein bhi 36px hai, dono same rakho) */
+const MOBILE_NOTCH_H = 36;
 
 /* =========================================================
    ICONS
@@ -177,6 +180,52 @@ function IconInfo(props) {
   );
 }
 
+function IconRefresh(props) {
+  return (
+    <svg {...iconProps} {...props}>
+      <path d="M23 4v6h-6M1 20v-6h6" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  );
+}
+
+function IconExternal(props) {
+  return (
+    <svg {...iconProps} {...props}>
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <path d="M15 3h6v6M10 14L21 3" />
+    </svg>
+  );
+}
+
+function IconPhone(props) {
+  return (
+    <svg {...iconProps} {...props}>
+      <path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" />
+      <path d="M12 18h.01" />
+    </svg>
+  );
+}
+
+function IconMonitor(props) {
+  return (
+    <svg {...iconProps} {...props}>
+      <path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+      <path d="M8 21h8M12 17v4" />
+    </svg>
+  );
+}
+
+function IconGlobe(props) {
+  return (
+    <svg {...iconProps} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3c2.5 2.6 3.9 5.7 3.9 9s-1.4 6.4-3.9 9c-2.5-2.6-3.9-5.7-3.9-9S9.5 5.6 12 3z" />
+    </svg>
+  );
+}
+
 function createDefaultProduct() {
   return {
     name: "",
@@ -291,30 +340,48 @@ export default function ProductEditor({
   const [previewMode, setPreviewMode] = useState("mobile");
   const [previewKey, setPreviewKey] = useState(0);
   const [previewLoading, setPreviewLoading] = useState(true);
-  const [previewScale, setPreviewScale] = useState(1);
-  const previewFrameRef = useRef(null);
+  const [baseUrl, setBaseUrl] = useState("");
 
   const effectiveId = productId || savedId;
 
-  // Measure the preview column and scale the real-size iframe to fit it
+  /* preview sizing (profile editor jaisa) */
+  const stageRef = useRef(null);
+  const [stageWidth, setStageWidth] = useState(320);
+
   useEffect(() => {
-    const el = previewFrameRef.current;
+    setBaseUrl(window.location.origin);
+  }, []);
+
+  useEffect(() => {
+    const el = stageRef.current;
     if (!el) return;
-
-    const deviceWidth = DEVICE_SIZES[previewMode].width;
-
-    function recalc() {
-      const w = el.clientWidth;
-      setPreviewScale(w > 0 ? Math.min(w / deviceWidth, 1) : 1);
-    }
-
-    recalc();
-
-    const observer = new ResizeObserver(recalc);
+    const calc = () => setStageWidth(el.clientWidth || 320);
+    calc();
+    const observer = new ResizeObserver(calc);
     observer.observe(el);
-
     return () => observer.disconnect();
-  }, [previewMode]);
+  }, []);
+
+  const device = DEVICE_SIZES[previewMode];
+  const screenW = Math.max(
+    previewMode === "mobile" ? Math.min(300, stageWidth - 24) : stageWidth - 2,
+    120
+  );
+  const scale = screenW / device.width;
+  const screenH = Math.round(device.height * scale);
+  const notchH = previewMode === "mobile" ? MOBILE_NOTCH_H : 0;
+  const frameH = Math.max(1, Math.round((screenH - notchH) / scale));
+
+  function reloadPreview() {
+    setPreviewLoading(true);
+    setPreviewKey((k) => k + 1);
+  }
+
+  function switchMode(m) {
+    if (m === previewMode) return;
+    setPreviewLoading(true);
+    setPreviewMode(m);
+  }
 
   const subcategories = useMemo(
     () => getSubcategoriesForCategory(product.category) || [],
@@ -550,6 +617,7 @@ export default function ProductEditor({
 
   // Seller's public STORE page. Used for the live preview and the Copy Link button.
   const previewUrl = sellerUsername ? `/${sellerUsername}/store` : "";
+  const shortUrl = `${baseUrl}${previewUrl}`.replace(/^https?:\/\//, "");
 
   async function handleCopyLink() {
     if (!previewUrl) return;
@@ -615,7 +683,7 @@ export default function ProductEditor({
 
       {error && <div className="prod-error-banner">{error}</div>}
 
-      <div className="prodedit-body">
+      <div className={`prodedit-body ${previewMode === "desktop" ? "prodedit-body-desktop" : ""}`}>
         <div className="prodedit-form">
           <Section icon={<IconFileText />} title="Product Information">
             <Field label="Product Name" required error={fieldErrors.name}>
@@ -922,7 +990,6 @@ export default function ProductEditor({
                 </div>
               </div>
 
-
               <div className="pe-toggle-row">
                 <Toggle
                   checked={product.featured}
@@ -991,30 +1058,62 @@ export default function ProductEditor({
           </Section>
         </div>
 
-        {/* LIVE PREVIEW — a real iframe of the actual public product page.
-            It is pixel-identical to what customers see and fully clickable,
-            because it IS the live page. It shows the last SAVED version,
-            so click "Save & Update Preview" after making changes. */}
+        {/* LIVE PREVIEW — real iframe of the public store page, styled like the
+            Profile Editor preview (phone bezel + notch, browser bar, dotted bg).
+            It shows the last SAVED version, so click "Save & Update Preview"
+            after making changes. */}
         <aside className="prodedit-preview">
-          <div className="pv-header">
-            <h2 className="prodedit-preview-title">Live Preview</h2>
-
-            <div className="pv-device-toggle">
-              <button
-                type="button"
-                className={previewMode === "desktop" ? "pv-device-btn pv-device-active" : "pv-device-btn"}
-                onClick={() => setPreviewMode("desktop")}
-              >
-                Desktop
-              </button>
-              <button
-                type="button"
-                className={previewMode === "mobile" ? "pv-device-btn pv-device-active" : "pv-device-btn"}
-                onClick={() => setPreviewMode("mobile")}
-              >
-                Mobile
-              </button>
+          <div className="pv-head">
+            <div>
+              <h2 className="prodedit-preview-title">Live Preview</h2>
+              <p className="pv-sub">Shows your last saved version.</p>
             </div>
+
+            <div className="pv-tools">
+              <button
+                type="button"
+                className="pe-icon-btn"
+                onClick={reloadPreview}
+                aria-label="Reload preview"
+                title="Reload preview"
+              >
+                <IconRefresh style={{ width: 14, height: 14 }} />
+              </button>
+              {previewUrl && (
+                <a
+                  className="pe-icon-btn"
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open in new tab"
+                  title="Open in new tab"
+                >
+                  <IconExternal style={{ width: 14, height: 14 }} />
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="pv-seg" role="tablist">
+            <span
+              className={
+                previewMode === "mobile" ? "pv-seg-pill" : "pv-seg-pill pv-seg-pill-desktop"
+              }
+            />
+            <button
+              type="button"
+              className={previewMode === "mobile" ? "pv-seg-active" : ""}
+              onClick={() => switchMode("mobile")}
+            >
+              <IconPhone style={{ width: 14, height: 14 }} /> Mobile
+            </button>
+            <button
+              type="button"
+              className={previewMode === "desktop" ? "pv-seg-active" : ""}
+              onClick={() => switchMode("desktop")}
+            >
+              <IconMonitor style={{ width: 14, height: 14 }} /> Desktop
+            </button>
           </div>
 
           <button
@@ -1026,66 +1125,81 @@ export default function ProductEditor({
             {saving ? "Saving..." : "Save & Update Preview"}
           </button>
 
-          <div className="pv-frame-outer" ref={previewFrameRef}>
+          <div className="pv-stage" ref={stageRef}>
             <div
-              className="pv-frame"
-              style={{
-                width: DEVICE_SIZES[previewMode].width * previewScale,
-                height: DEVICE_SIZES[previewMode].height * previewScale,
-              }}
+              className={`pv-device pv-device-${previewMode}`}
+              style={{ width: previewMode === "mobile" ? screenW + 24 : screenW + 2 }}
             >
-              {previewUrl ? (
-                <>
-                  {previewLoading && (
-                    <div className="pv-frame-loading">Loading preview…</div>
-                  )}
-
-                  <div
-                    className="pv-frame-scale"
-                    style={{
-                      width: DEVICE_SIZES[previewMode].width,
-                      height: DEVICE_SIZES[previewMode].height,
-                      transform: `scale(${previewScale})`,
-                    }}
-                  >
-                    <iframe
-                      key={previewKey}
-                      src={previewUrl}
-                      title="Live store preview"
-                      className="pv-frame-iframe"
-                      style={{
-                        width: DEVICE_SIZES[previewMode].width,
-                        height: DEVICE_SIZES[previewMode].height,
-                      }}
-                      onLoad={(e) => {
-                        setPreviewLoading(false);
-
-                        // Hide the iframe's native scrollbar (same-origin only).
-                        // Scrolling still works, only the bar is hidden.
-                        try {
-                          const doc = e.target.contentDocument;
-
-                          if (doc && !doc.getElementById("pv-hide-scrollbar")) {
-                            const style = doc.createElement("style");
-                            style.id = "pv-hide-scrollbar";
-                            style.textContent = `
-                              html { scrollbar-width: none; }
-                              ::-webkit-scrollbar { width: 0; height: 0; }
-                            `;
-                            doc.head.appendChild(style);
-                          }
-                        } catch {
-                          /* cross-origin — ignore */
-                        }
-                      }}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="pv-frame-empty">
-                  Store preview is not available yet.
+              {previewMode === "desktop" && (
+                <div className="pv-browser-bar">
+                  <span className="pv-dots">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span className="pv-url">
+                    <IconGlobe style={{ width: 11, height: 11 }} />
+                    {shortUrl || "your-store"}
+                  </span>
                 </div>
               )}
+
+              {previewMode === "mobile" && <span className="pv-notch" />}
+
+              <div className="pv-screen" style={{ width: screenW, height: screenH }}>
+                {previewMode === "mobile" && (
+                  <div className="pv-statusbar" aria-hidden="true" />
+                )}
+
+                {previewUrl ? (
+                  <>
+                    {previewLoading && (
+                      <div className="pv-msg">
+                        <i className="pv-spin" />
+                        Loading preview…
+                      </div>
+                    )}
+
+                    <div
+                      className="pv-scale"
+                      style={{
+                        width: device.width,
+                        height: frameH,
+                        transform: `scale(${scale})`,
+                      }}
+                    >
+                      <iframe
+                        key={`${previewKey}-${previewMode}`}
+                        src={previewUrl}
+                        title="Live store preview"
+                        className="pv-iframe"
+                        style={{ width: device.width, height: frameH }}
+                        onLoad={(e) => {
+                          setPreviewLoading(false);
+
+                          // Hide the iframe's native scrollbar (same-origin only).
+                          // Scrolling still works, only the bar is hidden.
+                          try {
+                            const doc = e.target.contentDocument;
+
+                            if (doc && !doc.getElementById("pv-hide-scrollbar")) {
+                              const style = doc.createElement("style");
+                              style.id = "pv-hide-scrollbar";
+                              style.textContent =
+                                "html{scrollbar-width:none}::-webkit-scrollbar{width:0;height:0}";
+                              doc.head.appendChild(style);
+                            }
+                          } catch {
+                            /* cross-origin: ignore */
+                          }
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="pv-msg">Store preview is not available yet.</div>
+                )}
+              </div>
             </div>
           </div>
         </aside>

@@ -6,6 +6,7 @@ import {
   getProfileForDashboard,
   saveProfile,
   checkUsernameAvailability,
+  publishProfile,
 } from "@/app/businessLogic/profileBusinessLogic";
 
 /* ---------------- ERROR ---------------- */
@@ -82,6 +83,51 @@ export async function updateProfileController(request) {
     return NextResponse.json({
       success: true,
       message: "Profile saved.",
+      profile,
+    });
+  } catch (error) {
+    return handleProfileError(error);
+  }
+}
+
+/* ---------------- PUBLISH ----------------
+   POST /api/profile  body: { "action": "publish" }
+   Unpublish system hata diya gaya hai: ek baar publish = hamesha live.
+------------------------------------------------------- */
+
+export async function publishProfileController(request) {
+  try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return unauthorizedResponse();
+    }
+
+    let body = {};
+
+    try {
+      body = await request.json();
+    } catch {
+      body = {};
+    }
+
+    if (body?.action !== "publish") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid action.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const profile = await publishProfile(user.id);
+
+    return NextResponse.json({
+      success: true,
+      message: "Your page is now live.",
       profile,
     });
   } catch (error) {

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
-
 import { getCurrentUser } from "@/app/lib/auth/auth";
-
 import { uploadProfileImage } from "@/app/businessLogic/uploadBusinessLogic";
 
 function handleUploadError(error) {
+  console.error("UPLOAD ERROR:", {
+    message: error.message,
+    statusCode: error.statusCode,
+  });
+
   const statusCode = error.statusCode || 500;
 
   const message =
@@ -17,9 +20,7 @@ function handleUploadError(error) {
       success: false,
       message,
     },
-    {
-      status: statusCode,
-    }
+    { status: statusCode }
   );
 }
 
@@ -33,17 +34,14 @@ export async function uploadImageController(request) {
           success: false,
           message: "Not authenticated.",
         },
-        {
-          status: 401,
-        }
+        { status: 401 }
       );
     }
 
     const formData = await request.formData();
-
     const file = formData.get("file");
 
-    const secureUrl = await uploadProfileImage(file);
+    const secureUrl = await uploadProfileImage(file, user.id);
 
     return NextResponse.json({
       success: true,

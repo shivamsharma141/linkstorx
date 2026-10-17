@@ -1,12 +1,21 @@
 @import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Poppins:wght@400;500;600;700&display=swap");
 
+/* =========================================================
+   STORE PAGE
+   Theme vars (--pub-accent, --pub-page-bg, --pub-ink ...) are set
+   inline by PublicStoreView, so seller's background + colors apply.
+   Values below are only the default (white) fallbacks.
+========================================================= */
+
 .ls-store-page {
-  --pub-ink: #241b15;
-  --pub-muted: #88796b;
-  --pub-accent: #3a2b20;
-  --pub-page-bg: #f5f0e9;
+  --pub-ink: #0a1a3f;
+  --pub-muted: #5d6b88;
+  --pub-accent: #0066ff;
+  --pub-on-accent: #ffffff;
+  --pub-page-bg: #ffffff;
   --pub-card-bg: #ffffff;
-  --pub-border: #ece0d2;
+  --pub-border: #e3eaf7;
+  --pub-field: #ffffff;
 
   width: 100%;
   min-height: 100vh;
@@ -41,17 +50,47 @@
   min-width: 0;
 }
 
+.ls-store-seller-text {
+  min-width: 0;
+}
+
+.ls-store-back {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pub-field);
+  border: 1px solid var(--pub-border);
+  color: var(--pub-ink);
+  text-decoration: none;
+  transition: 0.15s ease;
+}
+
+.ls-store-back:hover {
+  border-color: var(--pub-accent);
+  color: var(--pub-accent);
+  transform: translateX(-2px);
+}
+
 .ls-store-avatar {
   width: 56px;
   height: 56px;
   border-radius: 50%;
   object-fit: cover;
   background: #e9e2d9;
+  border: 2px solid var(--pub-border);
   flex-shrink: 0;
 }
 
 .ls-store-avatar-placeholder {
-  background: linear-gradient(135deg, #eee8df, #ded4c8);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--pub-accent) 14%, var(--pub-page-bg)),
+    color-mix(in srgb, var(--pub-accent) 30%, var(--pub-page-bg))
+  );
   display: flex;
   align-items: center;
   justify-content: center;
@@ -67,6 +106,7 @@
   font-weight: 600;
   margin: 0 0 2px;
   line-height: 1.2;
+  color: var(--pub-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -117,9 +157,9 @@
 }
 
 .ls-btn-outline {
-  background: #fff;
-  border: 1px solid #e0d5c7;
-  color: var(--pub-ink, #241b15);
+  background: var(--pub-field);
+  border: 1px solid var(--pub-border);
+  color: var(--pub-ink);
 }
 
 .ls-btn-outline:hover:not(:disabled) {
@@ -127,8 +167,8 @@
 }
 
 .ls-btn-primary {
-  background: var(--pub-accent, #3a2b20);
-  color: #fff;
+  background: var(--pub-accent);
+  color: var(--pub-on-accent);
 }
 
 .ls-btn-primary:hover:not(:disabled) {
@@ -144,23 +184,23 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: #fff;
-  border: 1px solid #e0d5c7;
+  background: var(--pub-field);
+  border: 1px solid var(--pub-border);
   border-radius: 12px;
   padding: 10px 16px;
   text-decoration: none;
-  color: var(--pub-ink, #241b15);
+  color: var(--pub-ink);
   font-size: 13px;
   font-weight: 600;
 }
 
 .ls-cart-icon:hover {
-  border-color: var(--ls-cart-accent, var(--pub-accent, #3a2b20));
+  border-color: var(--pub-accent);
 }
 
 .ls-cart-badge {
-  background: var(--ls-cart-accent, var(--pub-accent, #3a2b20));
-  color: #fff;
+  background: var(--pub-accent);
+  color: var(--pub-on-accent);
   border-radius: 999px;
   min-width: 18px;
   height: 18px;
@@ -172,14 +212,21 @@
 }
 
 /* =========================================================
-   HERO BANNER
+   HERO BANNER (follows the accent color)
 ========================================================= */
 
 .ls-store-hero {
   position: relative;
   overflow: hidden;
   border-radius: 20px;
-  background: linear-gradient(120deg, #f3e3cf 0%, #ecd8bd 55%, #e3c9a6 100%);
+  background:
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--pub-accent) 28%, transparent), transparent 46%),
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--pub-accent) 12%, var(--pub-page-bg)) 0%,
+      color-mix(in srgb, var(--pub-accent) 20%, var(--pub-page-bg)) 100%
+    );
+  border: 1px solid var(--pub-border);
   padding: 34px 38px;
   margin-bottom: 26px;
 }
@@ -257,12 +304,17 @@
 .ls-store-search {
   width: 100%;
   max-width: 420px;
-  border: 1px solid #e0d5c7;
+  border: 1px solid var(--pub-border);
   border-radius: 12px;
   padding: 11px 16px 11px 40px;
   font-size: 13px;
-  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2388796b' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5.5'/%3E%3Cpath d='M11 11l3.5 3.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 14px center;
+  color: var(--pub-ink);
+  background: var(--pub-field) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238d9ab5' stroke-width='2'%3E%3Ccircle cx='7' cy='7' r='5.5'/%3E%3Cpath d='M11 11l3.5 3.5' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat 14px center;
   outline: none;
+}
+
+.ls-store-search::placeholder {
+  color: var(--pub-muted);
 }
 
 .ls-store-search:focus {
@@ -274,8 +326,9 @@
   height: 42px;
   flex-shrink: 0;
   border-radius: 12px;
-  border: 1px solid #e0d5c7;
-  background: #fff;
+  border: 1px solid var(--pub-border);
+  background: var(--pub-field);
+  color: var(--pub-ink);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -291,8 +344,8 @@
 }
 
 .ls-chip {
-  border: 1px solid #e0d5c7;
-  background: #fff;
+  border: 1px solid var(--pub-border);
+  background: var(--pub-field);
   border-radius: 999px;
   padding: 9px 16px;
   font-size: 12px;
@@ -306,7 +359,7 @@
 .ls-chip-active {
   background: var(--pub-accent);
   border-color: var(--pub-accent);
-  color: #fff;
+  color: var(--pub-on-accent);
 }
 
 .ls-store-empty {
@@ -337,6 +390,7 @@
   font-size: 19px;
   font-weight: 700;
   margin: 0 0 4px;
+  color: var(--pub-ink);
 }
 
 .ls-store-section-subtitle {
@@ -360,8 +414,8 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1px solid #e0d5c7;
-  background: #fff;
+  border: 1px solid var(--pub-border);
+  background: var(--pub-field);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -380,14 +434,19 @@
 }
 
 .ls-sort-select {
-  border: 1px solid #e0d5c7;
+  border: 1px solid var(--pub-border);
   border-radius: 10px;
   padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
-  background: #fff;
+  background: var(--pub-field);
   color: var(--pub-ink);
   cursor: pointer;
+}
+
+.ls-sort-select option {
+  color: #0a1a3f;
+  background: #fff;
 }
 
 /* =========================================================
@@ -434,13 +493,13 @@
 
 .ls-product-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(55, 42, 30, 0.1);
+  box-shadow: 0 12px 24px rgba(10, 26, 63, 0.14);
 }
 
 .ls-product-card-media {
   position: relative;
   aspect-ratio: 1;
-  background: #f3ece1;
+  background: color-mix(in srgb, var(--pub-accent) 8%, var(--pub-page-bg));
   display: block;
 }
 
@@ -454,11 +513,15 @@
 .ls-product-card-placeholder {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #eee8df, #ded4c8);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--pub-accent) 10%, var(--pub-page-bg)),
+    color-mix(in srgb, var(--pub-accent) 22%, var(--pub-page-bg))
+  );
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #c3b6a4;
+  color: var(--pub-muted);
 }
 
 .ls-product-card-badge {
@@ -481,14 +544,14 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.92);
   border: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   z-index: 2;
-  color: var(--pub-ink);
+  color: #0a1a3f;
 }
 
 .ls-product-card-wishlist.ls-wishlist-active {
@@ -498,7 +561,7 @@
 .ls-product-card-oos {
   position: absolute;
   inset: 0;
-  background: rgba(20, 14, 9, 0.45);
+  background: rgba(10, 26, 63, 0.5);
   color: #fff;
   display: flex;
   align-items: center;
@@ -529,12 +592,12 @@
   height: 26px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.92);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--pub-ink);
+  color: #0a1a3f;
 }
 
 .ls-product-card-dots {
@@ -570,7 +633,7 @@
 .ls-product-card-name {
   font-size: 13px;
   font-weight: 600;
-  color: var(--pub-ink, #241b15);
+  color: var(--pub-ink);
   text-decoration: none;
   line-height: 1.35;
   display: -webkit-box;
@@ -600,7 +663,7 @@
 .ls-price-now {
   font-size: 14px;
   font-weight: 700;
-  color: var(--pub-ink, #241b15);
+  color: var(--pub-ink);
 }
 
 .ls-price-now-lg {
@@ -631,10 +694,11 @@
   flex: 1;
   padding: 9px 6px;
   font-size: 11.5px;
+  gap: 6px;
 }
 
 /* =========================================================
-   FOOTER
+   FOOTER + TOAST
 ========================================================= */
 
 .pub-footer {
@@ -642,6 +706,21 @@
   font-size: 12px;
   color: var(--pub-muted);
   margin-top: 40px;
+}
+
+.ls-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  padding: 11px 20px;
+  border-radius: 999px;
+  background: var(--pub-accent);
+  color: var(--pub-on-accent);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 14px 30px -10px rgba(0, 0, 0, 0.4);
 }
 
 /* =========================================================
@@ -657,6 +736,16 @@
   .ls-store-header {
     gap: 10px;
     margin-bottom: 18px;
+  }
+
+  .ls-store-seller {
+    gap: 10px;
+  }
+
+  .ls-store-back {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
   }
 
   .ls-store-avatar {
@@ -750,7 +839,6 @@
     padding: 7px 10px;
   }
 
-  /* single column, full-width, stacked cards — both grid and carousel */
   .ls-store-grid,
   .ls-store-carousel {
     display: grid;

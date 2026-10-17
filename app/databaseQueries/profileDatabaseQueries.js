@@ -19,6 +19,10 @@ export async function createProfile(data) {
   return Profile.create(data);
 }
 
+/*
+ * NOTE: payload mein isPublished / publishedAt kabhi nahi bheja jata,
+ * isliye normal save publish state ko touch nahi karta.
+ */
 export async function updateProfile(userId, updateData) {
   await connectToDatabase();
 
@@ -28,6 +32,26 @@ export async function updateProfile(userId, updateData) {
     {
       new: true,
       runValidators: true,
+    }
+  );
+}
+
+/*
+ * Sirf publish. Unpublish system nahi hai.
+ * (Purani calls jaise setProfilePublished(userId, true) bhi chalti rahengi,
+ * extra argument ignore hota hai.)
+ */
+export async function setProfilePublished(userId) {
+  await connectToDatabase();
+
+  return Profile.findOneAndUpdate(
+    { userId },
+    {
+      isPublished: true,
+      publishedAt: new Date(),
+    },
+    {
+      new: true,
     }
   );
 }

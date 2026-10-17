@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 const SOCIAL_META = {
@@ -14,11 +14,12 @@ const SOCIAL_META = {
   website: { label: "Website", color: "#5c5245" },
 };
 
+/* default theme = white page + brand blue */
+const DEFAULT_ACCENT = "#0066ff";
+const DEFAULT_BG = "#ffffff";
+
 /* =========================================================
    Platform brand styling for the "My Links" buttons.
-   Any link whose `icon` matches one of these keys gets
-   rendered as a filled brand-colored pill instead of the
-   default white card.
 ========================================================= */
 
 const LINK_PLATFORM_STYLE = {
@@ -80,26 +81,8 @@ function SocialIcon({ platform, size = 19, mono = false }) {
           </linearGradient>
         </defs>
 
-        <rect
-          x="2.6"
-          y="2.6"
-          width="18.8"
-          height="18.8"
-          rx="5.4"
-          fill="none"
-          stroke="url(#ls-ig)"
-          strokeWidth="2.1"
-        />
-
-        <circle
-          cx="12"
-          cy="12"
-          r="4.4"
-          fill="none"
-          stroke="url(#ls-ig)"
-          strokeWidth="2.1"
-        />
-
+        <rect x="2.6" y="2.6" width="18.8" height="18.8" rx="5.4" fill="none" stroke="url(#ls-ig)" strokeWidth="2.1" />
+        <circle cx="12" cy="12" r="4.4" fill="none" stroke="url(#ls-ig)" strokeWidth="2.1" />
         <circle cx="17.1" cy="6.9" r="1.35" fill="url(#ls-ig)" />
       </svg>
     );
@@ -107,14 +90,7 @@ function SocialIcon({ platform, size = 19, mono = false }) {
 
   if (platform === "website") {
     return (
-      <svg
-        viewBox="0 0 24 24"
-        width={size}
-        height={size}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
+      <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="12" cy="12" r="9" />
         <path d="M3 12h18" />
         <path d="M12 3c2.5 2.6 3.9 5.7 3.9 9s-1.4 6.4-3.9 9c-2.5-2.6-3.9-5.7-3.9-9S9.5 5.6 12 3z" />
@@ -145,6 +121,38 @@ function normalizeUrl(url) {
   }
 
   return `https://${value}`;
+}
+
+/* ---------- color helpers (auto light/dark text) ---------- */
+
+function getLuminance(hex) {
+  const value = String(hex || "").replace("#", "");
+
+  if (!/^[0-9a-fA-F]{6}$/.test(value)) return 1;
+
+  const channels = [0, 2, 4].map((i) => {
+    const c = parseInt(value.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function buildThemeVars(accent, background) {
+  const bgDark = getLuminance(background) < 0.4;
+  /* 0.3 = text on gold / light accents turns dark, so it stays readable */
+  const accentLight = getLuminance(accent) > 0.3;
+
+  return {
+    "--pub-accent": accent,
+    "--pub-on-accent": accentLight ? "#0a1a3f" : "#ffffff",
+    "--pub-page-bg": background,
+    "--pub-ink": bgDark ? "#f4f2fa" : "#0a1a3f",
+    "--pub-muted": bgDark ? "#aeb6cc" : "#5d6b88",
+    "--pub-line": bgDark ? "rgba(255,255,255,0.16)" : "#e3eaf7",
+    "--pub-surface": bgDark ? "rgba(255,255,255,0.07)" : "#ffffff",
+    "--pub-surface-border": bgDark ? "rgba(255,255,255,0.14)" : "#e3eaf7",
+  };
 }
 
 /* Tries a bunch of common field names/shapes so the shop
@@ -189,9 +197,6 @@ function getProductImage(product) {
   return null;
 }
 
-/* Same idea as getProductImage — tries common field names so
-   a short description shows up even if the field is named
-   differently in your product data. */
 function getProductDescription(product) {
   if (!product) return null;
 
@@ -224,12 +229,24 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
       (link) => link.enabled && link.url && link.url.trim() !== ""
     ) || [];
 
-  const accent = profile.theme?.accentColor || "#2563eb";
+  const accent = profile.theme?.accentColor || DEFAULT_ACCENT;
+  const background = profile.theme?.backgroundColor || DEFAULT_BG;
+
+  const themeVars = buildThemeVars(accent, background);
+
+  /* Paint <body> too, so no other background shows around the page */
+  useEffect(() => {
+    const prev = document.body.style.background;
+    document.body.style.background = background;
+    return () => {
+      document.body.style.background = prev;
+    };
+  }, [background]);
 
   const storeHref = `/${profile.username}/store`;
 
   return (
-    <div className="pub-page" style={{ "--pub-accent": accent }}>
+    <div className="pub-page" style={themeVars}>
       <div className="pub-card">
         <div className="pub-photo-wrap">
           <div className="pub-photo">
@@ -255,8 +272,6 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
         </div>
 
         <div className="pub-info">
-          {/* Visit Store — filled button, matches the primary
-              buttons below it. This one stays on the hero. */}
           <Link href={storeHref} className="pub-store-link">
             <span> Visit My Store</span>
             <span className="pub-button-arrow">→</span>

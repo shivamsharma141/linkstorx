@@ -1,8 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Poppins:wght@400;500;600;700&display=swap");
 
 /* =========================================================
-   GLOBAL SAFETY (prevents the horizontal scrollbar / gap
-   that was shifting content on mobile)
+   GLOBAL SAFETY
 ========================================================= */
 
 html,
@@ -13,19 +12,28 @@ body {
 
 /* =========================================================
    PUBLIC PROFILE
+   Theme variables (accent, background, ink, surface...) are
+   set inline by PublicProfileView. The values below are only
+   fallbacks. Hero card, tags and bio now follow the theme too.
 ========================================================= */
 
 .pub-page {
-  --pub-ink: #241b15;
-  --pub-muted: #88796b;
-  --pub-accent: #3a2b20;
-  --pub-accent-dark: #2d2118;
-  --pub-soft: #e8d8c9;
-  --pub-tag-bg: #efe5d9;
-  --pub-page-bg: #f5f0e9;
+  --pub-ink: #0a1a3f;
+  --pub-muted: #5d6b88;
+  --pub-accent: #0066ff;
+  --pub-on-accent: #ffffff;
+  --pub-page-bg: #ffffff;
+  --pub-line: #e3eaf7;
+  --pub-surface: #ffffff;
+  --pub-surface-border: #e3eaf7;
+
+  --pub-card-ink: var(--pub-ink);
+  --pub-card-muted: var(--pub-muted);
+  --pub-tag-bg: color-mix(in srgb, var(--pub-accent) 14%, var(--pub-page-bg));
 
   width: 100%;
   max-width: none;
+  min-height: 100vh;
 
   margin: 0;
   padding: 32px 40px 70px;
@@ -64,12 +72,13 @@ body {
     "photo heading"
     "photo info";
   min-height: 540px;
-  background: #fffdfb;
+  background: var(--pub-page-bg);
+  border: 1px solid var(--pub-line);
   border-radius: 28px;
   overflow: hidden;
   box-shadow:
-    0 20px 45px rgba(57, 42, 29, 0.08),
-    0 4px 14px rgba(57, 42, 29, 0.04);
+    0 20px 45px rgba(10, 26, 63, 0.10),
+    0 4px 14px rgba(10, 26, 63, 0.05);
 }
 
 /* =========================================================
@@ -81,7 +90,7 @@ body {
   position: relative;
   min-height: 540px;
   overflow: hidden;
-  background: #e9e2d9;
+  background: color-mix(in srgb, var(--pub-accent) 10%, var(--pub-page-bg));
 }
 
 .pub-photo {
@@ -102,7 +111,11 @@ body {
 .pub-photo-placeholder {
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #eee8df, #ded4c8);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--pub-accent) 12%, var(--pub-page-bg)),
+    color-mix(in srgb, var(--pub-accent) 26%, var(--pub-page-bg))
+  );
 }
 
 .pub-photo-overlay {
@@ -129,13 +142,13 @@ body {
   font-size: 11px;
   line-height: 1.4;
   font-weight: 600;
-  color: var(--pub-muted);
+  color: var(--pub-card-muted);
 }
 
 .pub-name {
   margin: 0;
   max-width: 100%;
-  color: var(--pub-ink);
+  color: var(--pub-card-ink);
   font-family: "Playfair Display", Georgia, serif;
   font-size: clamp(42px, 4vw, 58px);
   font-weight: 600;
@@ -181,7 +194,7 @@ body {
   padding: 13px 13px 13px 24px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 16px;
-  color: #fff;
+  color: var(--pub-on-accent);
   font-family: "Poppins", sans-serif;
   font-size: 15px;
   font-weight: 600;
@@ -229,7 +242,7 @@ body {
   font-size: 16px;
   font-weight: 500;
   line-height: 1;
-  color: #fff;
+  color: inherit;
   transition: transform 0.2s ease;
 }
 
@@ -257,7 +270,7 @@ body {
   min-height: 36px;
   padding: 7px 15px;
   background: var(--pub-tag-bg);
-  color: #55483d;
+  color: var(--pub-ink);
   border-radius: 11px;
   font-size: 12px;
   font-weight: 500;
@@ -285,17 +298,16 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: #fff;
-  border: 1px solid #e9dfd4;
-  box-shadow: 0 5px 14px rgba(56, 42, 30, 0.09);
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-surface-border);
+  box-shadow: 0 5px 14px rgba(10, 26, 63, 0.09);
   text-decoration: none;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .pub-social:hover {
   transform: translateY(-3px) scale(1.03);
-  background: #fffdfb;
-  box-shadow: 0 9px 20px rgba(56, 42, 30, 0.14);
+  box-shadow: 0 9px 20px rgba(10, 26, 63, 0.16);
 }
 
 /* =========================================================
@@ -306,7 +318,7 @@ body {
   width: 100%;
   max-width: 560px;
   margin: 0;
-  color: #66594d;
+  color: var(--pub-muted);
   font-size: 14px;
   font-weight: 400;
   line-height: 1.7;
@@ -322,7 +334,7 @@ body {
   gap: 4px;
   margin: 30px 0 26px;
   padding: 0;
-  border-bottom: 1px solid #ded4c7;
+  border-bottom: 1px solid var(--pub-line);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -351,7 +363,7 @@ body {
 }
 
 .pub-nav-item-active {
-  color: var(--pub-accent);
+  color: var(--pub-ink);
   font-weight: 600;
 }
 
@@ -361,8 +373,8 @@ body {
   left: 18px;
   right: 18px;
   bottom: -1px;
-  height: 2px;
-  border-radius: 2px;
+  height: 3px;
+  border-radius: 3px;
   background: var(--pub-accent);
 }
 
@@ -384,7 +396,7 @@ body {
 
 .pub-empty {
   margin: 0;
-  color: #a89c8c;
+  color: var(--pub-muted);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -405,8 +417,8 @@ body {
   align-items: center;
   gap: 11px;
   padding: 15px 18px;
-  background: #fff;
-  border: 1px solid #e8dfd4;
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-surface-border);
   border-radius: 14px;
   text-decoration: none;
   color: var(--pub-ink);
@@ -418,7 +430,7 @@ body {
 .pub-link:hover {
   transform: translateY(-2px);
   border-color: var(--pub-accent);
-  box-shadow: 0 9px 20px rgba(55, 42, 30, 0.08);
+  box-shadow: 0 9px 20px rgba(10, 26, 63, 0.10);
 }
 
 .pub-link-icon {
@@ -464,8 +476,8 @@ body {
   align-items: center;
   gap: 12px;
   padding: 13px 16px;
-  background: #fff;
-  border: 1px solid #e8dfd4;
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-surface-border);
   border-radius: 13px;
   color: var(--pub-ink);
   text-decoration: none;
@@ -477,7 +489,7 @@ body {
 .pub-contact-item:hover {
   transform: translateY(-1px);
   border-color: var(--pub-accent);
-  box-shadow: 0 7px 18px rgba(55, 42, 30, 0.06);
+  box-shadow: 0 7px 18px rgba(10, 26, 63, 0.08);
 }
 
 /* =========================================================
@@ -487,7 +499,7 @@ body {
 .pub-footer {
   margin-top: 48px;
   text-align: center;
-  color: #a89c8c;
+  color: var(--pub-muted);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -537,7 +549,6 @@ body {
     max-width: none;
     margin: 0;
     padding: 16px 12px 44px;
-    background: #f5f0e9;
     overflow-x: hidden;
   }
 
@@ -552,8 +563,8 @@ body {
     min-height: 0;
     border-radius: 26px;
     box-shadow:
-      0 16px 34px rgba(60, 45, 30, 0.14),
-      0 4px 10px rgba(60, 45, 30, 0.08);
+      0 16px 34px rgba(10, 26, 63, 0.16),
+      0 4px 10px rgba(10, 26, 63, 0.08);
   }
 
   .pub-photo-wrap {
@@ -635,7 +646,7 @@ body {
     width: 100%;
     padding: 22px 14px 30px;
     align-items: stretch;
-    background: #fffdfb;
+    background: var(--pub-page-bg);
     max-width: 100%;
   }
 
@@ -724,7 +735,7 @@ body {
     width: 100%;
     max-width: 100%;
     padding: 0 7px;
-    color: #66594d;
+    color: var(--pub-muted);
     font-size: 13px;
     line-height: 1.65;
     text-align: center;
@@ -848,8 +859,7 @@ body {
 }
 
 /* =========================================================
-   VISIT STORE LINK (styled as a filled button, matching
-   .pub-button below it)
+   VISIT STORE LINK (filled button, matches .pub-button)
 ========================================================= */
 
 .pub-store-link {
@@ -868,7 +878,7 @@ body {
   border-radius: 16px;
 
   background: var(--pub-accent);
-  color: #fff;
+  color: var(--pub-on-accent);
 
   font-size: 15px;
   font-weight: 600;
@@ -909,9 +919,7 @@ body {
 }
 
 /* =========================================================
-   SHOP TAB — responsive card grid (click → store page)
-   Uses auto-fill so columns adjust to available width
-   instead of shrinking cards below a usable size.
+   SHOP TAB
 ========================================================= */
 
 .pub-shop-grid {
@@ -924,8 +932,8 @@ body {
 .pub-shop-item {
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border: 1px solid #e8dfd4;
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-surface-border);
   border-radius: 18px;
   overflow: hidden;
   text-decoration: none;
@@ -935,13 +943,13 @@ body {
 
 .pub-shop-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 9px 20px rgba(55, 42, 30, 0.08);
+  box-shadow: 0 9px 20px rgba(10, 26, 63, 0.10);
 }
 
 .pub-shop-item-media {
   width: 100%;
   aspect-ratio: 1;
-  background: #fff;
+  background: transparent;
   padding: 8px;
 }
 
@@ -957,8 +965,7 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 12px;
-  background: #fff;
-  border: 1px solid #eee;
+  background: rgba(127, 127, 127, 0.14);
 }
 
 .pub-shop-item-body {
@@ -990,9 +997,6 @@ body {
   overflow: hidden;
 }
 
-/* Row holding the price on the left and the Buy Now
-   button on the right — mirrors the reference design,
-   using only the site's existing theme colors. */
 .pub-shop-item-footer {
   margin-top: auto;
   padding-top: 8px;
@@ -1017,7 +1021,7 @@ body {
   padding: 10px 18px;
   border-radius: 999px;
   background: var(--pub-accent);
-  color: #fff;
+  color: var(--pub-on-accent);
   font-size: 12.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -1032,10 +1036,7 @@ body {
 }
 
 /* =========================================================
-   SHOP CARDS — MOBILE (full width, single column)
-   Keeps the same vertical layout (image on top, details
-   below) as desktop, just stretched to the full container
-   width instead of a small grid tile.
+   SHOP CARDS — MOBILE
 ========================================================= */
 
 @media (max-width: 700px) {
@@ -1046,13 +1047,13 @@ body {
 
   .pub-shop-item {
     flex-direction: column;
-    box-shadow: 0 4px 12px rgba(55, 42, 30, 0.06);
+    box-shadow: 0 4px 12px rgba(10, 26, 63, 0.07);
   }
 
   .pub-shop-item:hover,
   .pub-shop-item:active {
     transform: none;
-    box-shadow: 0 4px 12px rgba(55, 42, 30, 0.06);
+    box-shadow: 0 4px 12px rgba(10, 26, 63, 0.07);
   }
 
   .pub-shop-item-media {
