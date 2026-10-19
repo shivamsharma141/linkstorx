@@ -33,9 +33,9 @@ const THEME_PRESETS = [
 
 const TAG_SUGGESTIONS = ["Creator", "Store", "Fashion", "Fitness", "Tech", "Food", "Education", "Art"];
 
-/* ---------- bio limit: 150 words (database ko bharne se bachane ke liye) ---------- */
-const MAX_BIO_WORDS = 150;
-const MAX_BIO_CHARS = 1500; // safety net, words limit pehle hit hoti hai
+/* ---------- bio limit: 80 words (database ko bharne se bachane ke liye) ---------- */
+const MAX_BIO_WORDS = 80;
+const MAX_BIO_CHARS = 800; // safety net, words limit pehle hit hoti hai
 
 function countWords(text) {
   return (String(text || "").match(/\S+/g) || []).length;
@@ -373,6 +373,8 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   /* ---------- preview sizing ---------- */
   const stageRef = useRef(null);
   const [stageWidth, setStageWidth] = useState(320);
+  const [vh, setVh] = useState(800); // screen height (phone preview bahar na nikle)
+  const [now, setNow] = useState(""); // phone status bar ka time
 
   useEffect(() => {
     const el = stageRef.current;
@@ -384,9 +386,32 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     return () => observer.disconnect();
   }, []);
 
+  /* screen height track karo (rotate / resize par preview adjust ho) */
+  useEffect(() => {
+    const onResize = () => setVh(window.innerHeight);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  /* status bar ka live time */
+  useEffect(() => {
+    const tick = () =>
+      setNow(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
+    tick();
+    const id = setInterval(tick, 15000);
+    return () => clearInterval(id);
+  }, []);
+
   const device = DEVICE_SIZES[previewMode];
+
+  const maxPhoneW = stageWidth >= 640 ? 340 : 300; // tablet par thoda bada phone
+  const byHeight = Math.round((vh * 0.8 * device.width) / device.height); // screen height ke andar
+
   const screenW = Math.max(
-    previewMode === "mobile" ? Math.min(300, stageWidth - 24) : stageWidth - 2,
+    previewMode === "mobile"
+      ? Math.min(maxPhoneW, stageWidth - 24, Math.max(byHeight, 200))
+      : stageWidth - 2,
     120
   );
   const scale = screenW / device.width;
@@ -1008,12 +1033,19 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
 
   return (
     <div className={`pe-wrapper pe-wrapper-${previewMode}`}>
+      {/* Back button: tablet/mobile par sabse upar (preview ke bhi upar) */}
+      <Link href={backHref} className="pe-backlink pe-backlink-top">
+        <Icon name="back" size={15} />
+        Back
+      </Link>
+
       {/* ============ LEFT ============ */}
       <div className="pe-main">
         <header className="pe-greet">
           <div className="pe-greet-left">
             <div>
-              <Link href={backHref} className="pe-backlink">
+              {/* desktop par yahan dikhta hai */}
+              <Link href={backHref} className="pe-backlink pe-backlink-inline">
                 <Icon name="back" size={15} />
                 Back
               </Link>
@@ -1721,8 +1753,25 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
               {previewMode === "mobile" && <span className="pe-notch" />}
 
               <div className="pe-screen" style={{ width: screenW, height: screenH }}>
-                {/* Phone status area: notch yahin hai, page iske NEECHE se start hota hai */}
-                {previewMode === "mobile" && <div className="pe-statusbar" aria-hidden="true" />}
+                {/* Phone status area: time + icons, notch yahin hai, page iske NEECHE se start hota hai */}
+                {previewMode === "mobile" && (
+                  <div className="pe-statusbar" aria-hidden="true">
+                    <span className="pe-status-time">{now}</span>
+                    <span className="pe-status-icons">
+                      <svg viewBox="0 0 18 12" width="16" height="11" fill="currentColor">
+                        <rect x="0" y="8" width="3" height="4" rx="1" />
+                        <rect x="5" y="5" width="3" height="7" rx="1" />
+                        <rect x="10" y="2" width="3" height="10" rx="1" />
+                        <rect x="15" y="0" width="3" height="12" rx="1" />
+                      </svg>
+                      <svg viewBox="0 0 26 12" width="24" height="11" fill="none">
+                        <rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity=".4" />
+                        <rect x="2" y="2" width="16" height="8" rx="2" fill="currentColor" />
+                        <rect x="23" y="4" width="2" height="4" rx="1" fill="currentColor" opacity=".4" />
+                      </svg>
+                    </span>
+                  </div>
+                )}
 
                 {canPreview ? (
                   <>

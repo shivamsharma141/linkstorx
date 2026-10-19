@@ -1,6 +1,10 @@
 /* =========================================================
-   LinkStorX Dashboard — simple flat CSS, no variables/:root.
+   LinkStorX Dashboard shell.
    Desktop: grouped sidebar.  Mobile/tablet: bottom tab bar.
+
+   IMPORTANT: shell ke resets :where() se zero-specificity hain aur
+   editors (.pe-wrapper / .prodedit-wrapper / .prod-wrapper) ko touch
+   nahi karte, isliye unke icons, buttons, colors waise hi rehte hain.
    ========================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800;900&display=swap');
@@ -11,36 +15,50 @@
 }
 
 .dash-layout {
-  font-family: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
   min-height: 100dvh;
   background: #f4f7ff;
-  color: #0a0f3d;
   overflow-x: clip;
 }
 
-.dash-layout a {
+/* editor pages: white background (jaisa pehle tha) */
+.dash-layout:has(.pe-wrapper, .prodedit-wrapper, .prod-wrapper) {
+  background: #ffffff;
+}
+
+/* Poppins + navy text sirf shell aur home content par; editors apna font/color khud set karte hain */
+.dash-sidebar,
+.dash-header,
+.dash-bottom,
+.dash-content > :not(.pe-wrapper):not(.prodedit-wrapper):not(.prod-wrapper) {
+  font-family: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #0a0f3d;
+}
+
+/* ---------- soft resets (zero specificity, editors excluded) ---------- */
+
+:where(.dash-layout) a:not(:where(.pe-wrapper, .prodedit-wrapper, .prod-wrapper) a) {
   text-decoration: none;
   color: inherit;
 }
 
-.dash-layout button {
+:where(.dash-layout) button:not(:where(.pe-wrapper, .prodedit-wrapper, .prod-wrapper) button) {
   font-family: inherit;
   cursor: pointer;
   border: none;
 }
 
-.dash-layout label {
+:where(.dash-layout) label:not(:where(.pe-wrapper, .prodedit-wrapper, .prod-wrapper) label) {
   cursor: pointer;
 }
 
-.dash-layout svg {
+:where(.dash-layout) svg:not(:where(.pe-wrapper, .prodedit-wrapper, .prod-wrapper) svg) {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
 }
 
-.dash-layout svg path {
+:where(.dash-layout) svg:not(:where(.pe-wrapper, .prodedit-wrapper, .prod-wrapper) svg) path {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -61,7 +79,7 @@
   left: 0;
   bottom: 0;
   width: 260px;
-  z-index: 1002;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
@@ -260,7 +278,7 @@
 .dash-header {
   position: sticky;
   top: 0;
-  z-index: 900;
+  z-index: 40;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -450,6 +468,15 @@
   overflow-wrap: anywhere;
 }
 
+/* editors ke sticky panels ab sticky header ke neeche se start hon */
+.dash-content .pe-side-inner {
+  top: 72px;
+}
+
+.dash-content .prodedit-preview {
+  top: 92px;
+}
+
 /* ---------- Bottom bar (mobile / tablet) ---------- */
 
 .dash-bottom {
@@ -458,7 +485,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1000;
+  z-index: 40;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 2px;
   padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
@@ -502,6 +529,29 @@
 
 .dash-bottom-item-active svg path {
   stroke-width: 2.1;
+}
+
+/* =========================================================
+   Desktop: My Store / Product editor par sidebar nahi dikhta
+   (phone par bottom bar hamesha dikhta hai).
+   Products LIST par bhi hatana ho to :has() mein .prod-wrapper add kar do.
+   ========================================================= */
+@media (min-width: 969px) {
+  .dash-layout:has(.pe-wrapper, .prodedit-wrapper) .dash-sidebar {
+    display: none;
+  }
+
+  .dash-layout:has(.pe-wrapper, .prodedit-wrapper) .dash-main {
+    margin-left: 0;
+  }
+
+  .dash-layout:has(.pe-wrapper, .prodedit-wrapper) .dash-header {
+    justify-content: space-between;
+  }
+
+  .dash-layout:has(.pe-wrapper, .prodedit-wrapper) .dash-header-logo {
+    display: block;
+  }
 }
 
 /* =========================================================
@@ -561,6 +611,11 @@
   /* content bottom bar ke peeche na chhupe */
   .dash-content {
     padding: 22px 14px calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* editors ke toast bottom bar ke upar dikhe */
+  .dash-layout .pe-toast {
+    bottom: calc(86px + env(safe-area-inset-bottom, 0px));
   }
 }
 
