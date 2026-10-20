@@ -27,15 +27,13 @@ const subscriptionOrderSchema = new mongoose.Schema(
       default: "INR",
     },
 
-    // Humara banaya hua order_id (Cashfree me bhi yahi order_id hota hai)
-    cashfreeOrderId: {
+    razorpayOrderId: {
       type: String,
       required: true,
       unique: true,
-      sparse: true, // purane Razorpay records ke saath conflict na ho
     },
 
-    cashfreePaymentId: {
+    razorpayPaymentId: {
       type: String,
       default: "",
     },

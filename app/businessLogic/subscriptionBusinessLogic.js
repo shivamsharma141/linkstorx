@@ -3,18 +3,17 @@ import crypto from "crypto";
 import { getPlan, getPlans, getPublicPlans, PAID_PLAN_IDS } from "@/app/config/subscriptionPlans";
 
 import {
-  createCashfreeOrder,
-  getCashfreeMode,
-  getCashfreeOrderPayments,
+  createRazorpayOrder,
+  getRazorpayKeyId,
+  verifyPaymentSignature,
   verifyWebhookSignature,
-  rupeesToPaise,
-} from "@/app/lib/cashfree/cashfree";
+} from "@/app/lib/razorpay/razorpay";
 
 import {
   findSubscriptionByUserId,
   applyOrderToSubscription,
   createSubscriptionOrderRecord,
-  findOrderByCashfreeOrderId,
+  findOrderByRazorpayOrderId,
   markOrderPaid,
   countRecentCreatedOrders,
   countProductsByUserId,
@@ -126,12 +125,6 @@ export async function enforceProductLimitAfterCreate(userId, productId) {
    STEP 1: ORDER BANANA
 ========================================================= */
 
-// Cashfree ko valid 10 digit phone chahiye. User ke paas phone nahi hai to placeholder.
-function getCustomerPhone(user) {
-  const digits = String(user.phone || user.mobile || "").replace(/\D/g, "").slice(-10);
-  return digits.length === 10 ? digits : "9999999999";
-}
-
 export async function createSubscriptionOrder(user, planId) {
   const plan = PAID_PLAN_IDS.includes(planId) ? getPlan(planId) : null;
 
@@ -165,28 +158,15 @@ export async function createSubscriptionOrder(user, planId) {
     );
   }
 
-  // Cashfree order_id: letters, numbers, _ aur - (3 se 45 chars)
-  const orderId = `sub_${crypto.randomBytes(8).toString("hex")}`;
+  const receipt = `sub_${crypto.randomBytes(8).toString("hex")}`;
 
-  // Mobile UPI apps se wapas aane par user yaha redirect hota hai
-  const returnUrl = process.env.CASHFREE_RETURN_URL
-    ? `${process.env.CASHFREE_RETURN_URL}?order_id={order_id}`
-    : undefined;
-
-  const cashfreeOrder = await createCashfreeOrder({
-    orderId,
+  const razorpayOrder = await createRazorpayOrder({
     amountPaise: plan.pricePaise,
-    customer: {
-      id: String(user.id),
-      name: user.username,
-      email: user.email,
-      phone: getCustomerPhone(user),
-    },
-    returnUrl,
-    tags: { userId: String(user.id), plan: plan.id },
+    receipt,
+    notes: { userId: user.id, plan: plan.id },
   });
 
-  if (rupeesToPaise(cashfreeOrder.order_amount) !== plan.pricePaise) {
+  if (razorpayOrder.amount !== plan.pricePaise) {
     throw createAppError("Could not start the payment. Please try again.", 502);
   }
 
@@ -195,15 +175,15 @@ export async function createSubscriptionOrder(user, planId) {
     plan: plan.id,
     amountPaise: plan.pricePaise,
     currency: "INR",
-    cashfreeOrderId: cashfreeOrder.order_id,
+    razorpayOrderId: razorpayOrder.id,
     status: "created",
   });
 
   return {
-    orderId: cashfreeOrder.order_id,
-    paymentSessionId: cashfreeOrder.payment_session_id,
-    mode: getCashfreeMode(),
+    orderId: razorpayOrder.id,
+    keyId: getRazorpayKeyId(),
     planName: plan.name,
+    prefill: { name: user.username, email: user.email },
   };
 }
 
@@ -230,11 +210,11 @@ async function applyPlanFromOrder(order) {
   const expiresAt = new Date(base.getTime() + plan.durationDays * DAY_MS);
   const startedAt = samePlan ? subscription.startedAt : now;
 
-  await applyOrderToSubscription(order.userId, order.cashfreeOrderId, {
+  await applyOrderToSubscription(order.userId, order.razorpayOrderId, {
     plan: plan.id,
     startedAt,
     expiresAt,
-    paymentId: order.cashfreePaymentId || "",
+    paymentId: order.razorpayPaymentId || "",
   });
 }
 
@@ -243,8 +223,8 @@ async function finalizeOrder(order, paymentId) {
 
   if (order.status !== "paid") {
     paidOrder =
-      (await markOrderPaid(order.cashfreeOrderId, paymentId)) ||
-      (await findOrderByCashfreeOrderId(order.cashfreeOrderId));
+      (await markOrderPaid(order.razorpayOrderId, paymentId)) ||
+      (await findOrderByRazorpayOrderId(order.razorpayOrderId));
   }
 
   await applyPlanFromOrder(paidOrder);
@@ -253,44 +233,30 @@ async function finalizeOrder(order, paymentId) {
 }
 
 /* =========================================================
-   STEP 2: BROWSER SE VERIFY (Cashfree checkout ke baad)
-   Browser sirf order_id bhejta hai. Asli status hum Cashfree
-   ke server se poochte hain — browser pe bharosa nahi.
+   STEP 2: BROWSER SE VERIFY (Razorpay checkout ke baad)
 ========================================================= */
 
 export async function verifyPaymentForUser(userId, body) {
-  const orderId = typeof body?.order_id === "string" ? body.order_id : "";
+  const orderId = typeof body?.razorpay_order_id === "string" ? body.razorpay_order_id : "";
+  const paymentId = typeof body?.razorpay_payment_id === "string" ? body.razorpay_payment_id : "";
+  const signature = typeof body?.razorpay_signature === "string" ? body.razorpay_signature : "";
 
-  if (!orderId) {
+  if (!orderId || !paymentId || !signature) {
     throw createAppError("Invalid payment details.", 400);
   }
 
-  const order = await findOrderByCashfreeOrderId(orderId);
+  const order = await findOrderByRazorpayOrderId(orderId);
 
   // Order isi user ka hona chahiye
   if (!order || order.userId.toString() !== userId) {
     throw createAppError("Order not found.", 404);
   }
 
-  // Already paid ho chuka (webhook pehle aa gaya) -> seedha summary
-  if (order.status !== "paid") {
-    const payments = await getCashfreeOrderPayments(orderId);
-
-    const successPayment = payments.find(
-      (p) =>
-        p.payment_status === "SUCCESS" &&
-        rupeesToPaise(p.payment_amount) === order.amountPaise &&
-        (p.payment_currency || "INR") === order.currency
-    );
-
-    if (!successPayment) {
-      throw createAppError("Payment is not confirmed yet.", 400);
-    }
-
-    await finalizeOrder(order, String(successPayment.cf_payment_id));
-  } else {
-    await finalizeOrder(order, order.cashfreePaymentId);
+  if (!verifyPaymentSignature({ orderId, paymentId, signature })) {
+    throw createAppError("Payment verification failed.", 400);
   }
+
+  await finalizeOrder(order, paymentId);
 
   return getSubscriptionSummary(userId);
 }
@@ -299,10 +265,10 @@ export async function verifyPaymentForUser(userId, body) {
    STEP 3: WEBHOOK (browser band ho jaye tab bhi plan lag jaye)
 ========================================================= */
 
-const HANDLED_EVENTS = ["PAYMENT_SUCCESS_WEBHOOK"];
+const HANDLED_EVENTS = ["payment.captured", "order.paid"];
 
-export async function processWebhook(rawBody, signature, timestamp) {
-  if (!signature || !timestamp || !verifyWebhookSignature(rawBody, signature, timestamp)) {
+export async function processWebhook(rawBody, signature) {
+  if (!signature || !verifyWebhookSignature(rawBody, signature)) {
     throw createAppError("Invalid signature.", 400);
   }
 
@@ -314,34 +280,33 @@ export async function processWebhook(rawBody, signature, timestamp) {
     throw createAppError("Invalid payload.", 400);
   }
 
-  if (!HANDLED_EVENTS.includes(event?.type)) {
+  if (!HANDLED_EVENTS.includes(event?.event)) {
     return { handled: false };
   }
 
-  const orderId = event.data?.order?.order_id;
-  const payment = event.data?.payment;
+  const payment = event.payload?.payment?.entity;
 
-  if (!orderId || !payment?.cf_payment_id) {
+  if (!payment?.order_id || !payment?.id) {
     return { handled: false };
   }
 
-  const order = await findOrderByCashfreeOrderId(orderId);
+  const order = await findOrderByRazorpayOrderId(payment.order_id);
 
-  // Humara order nahi hai -> ignore
+  // Humara order nahi hai (kisi aur cheez ka payment) -> ignore
   if (!order) {
     return { handled: false };
   }
 
   if (
-    payment.payment_status !== "SUCCESS" ||
-    rupeesToPaise(payment.payment_amount) !== order.amountPaise ||
-    (payment.payment_currency || "INR") !== order.currency
+    payment.status !== "captured" ||
+    payment.amount !== order.amountPaise ||
+    payment.currency !== order.currency
   ) {
-    console.error("Webhook payment mismatch for order", order.cashfreeOrderId);
+    console.error("Webhook payment mismatch for order", order.razorpayOrderId);
     return { handled: false };
   }
 
-  await finalizeOrder(order, String(payment.cf_payment_id));
+  await finalizeOrder(order, payment.id);
 
   return { handled: true };
 }
