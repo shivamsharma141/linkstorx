@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import Script from 'next/script';
 import { requireAuth } from '@/app/lib/auth/auth';
 import { getSubscriptionSummary } from '@/app/businessLogic/subscriptionBusinessLogic';
 import './dashboard.css';
@@ -227,7 +228,7 @@ export default async function DashboardLayout({ children }) {
         ))}
       </nav>
 
-      <script dangerouslySetInnerHTML={{ __html: ACTIVE_NAV_SCRIPT }} />
+      <Script id="dash-active-nav" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: ACTIVE_NAV_SCRIPT }} />
     </div>
   );
 }

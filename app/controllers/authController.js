@@ -147,9 +147,8 @@ export async function loginController(request) {
 /* ---------------- LOGOUT ---------------- */
 
 export function logoutController(request) {
-  const response = NextResponse.redirect(
-    new URL("/login", request.url)
-  );
+  // 303 => browser POST ke baad GET se "/" kholta hai (405 / Vercel page nahi aata)
+  const response = NextResponse.redirect(new URL("/", request.url), 303);
 
   response.cookies.set(AUTH_COOKIE, "", {
     httpOnly: true,

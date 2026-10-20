@@ -106,34 +106,8 @@ export default function Navbar({ user = null }) {
 
           {/* Right side actions */}
           <div className="nav-actions">
-            <button type="button" className="icon-btn" aria-label="Cart">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M3 4h2l.4 2M7 13h10l3-7H6.4M7 13l-1.6-7M7 13l-1.6 7h11.2"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <circle cx="9" cy="20" r="1.4" fill="currentColor" />
-                <circle cx="17" cy="20" r="1.4" fill="currentColor" />
-              </svg>
-            </button>
-
-            <button type="button" className="icon-btn" aria-label="Premium">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M3 8l4 3 5-6 5 6 4-3-2 10H5L3 8z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-              </svg>
-            </button>
-
             {user ? (
-              /* Logged in — profile dropdown */
+              /* Logged in — profile dropdown (desktop only) */
               <div className="profile" ref={profileRef}>
                 <button
                   type="button"

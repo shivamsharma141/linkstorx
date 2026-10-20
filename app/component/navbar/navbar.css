@@ -110,37 +110,6 @@
   flex-shrink: 0;
 }
 
-.icon-btn {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: rgba(10, 15, 61, 0.06);
-  color: #0a0f3d;
-  cursor: pointer;
-  transition: background-color 0.25s ease, color 0.25s ease, transform 0.2s ease;
-}
-
-.icon-btn svg {
-  width: 19px;
-  height: 19px;
-}
-
-.icon-btn:hover {
-  background: linear-gradient(120deg, #1a2fd6 0%, #2f6bff 100%);
-  color: #ffffff;
-  transform: translateY(-2px);
-}
-
-.icon-btn:active {
-  transform: translateY(0);
-}
-
 /* ---------- Login / Signup — premium pill ---------- */
 
 .login-btn {
@@ -217,6 +186,7 @@
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
+  line-height: 1;
 }
 
 .profile-name {
@@ -488,6 +458,22 @@
   padding: 4px 2px 6px;
 }
 
+/* Drawer avatar — bigger and crisper */
+.drawer-user .profile-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(26, 47, 214, 0.28);
+}
+
 .drawer-user-text {
   min-width: 0;
   flex: 1;
@@ -533,7 +519,7 @@
   background: #ffe3e3;
 }
 
-.drawer-footer span {
+.drawer-footer > span {
   display: block;
   font-size: 12px;
   color: rgba(10, 15, 61, 0.45);
@@ -552,6 +538,11 @@
 
   .hamburger {
     display: flex;
+  }
+
+  /* Navbar avatar hidden — drawer already shows user info */
+  .profile {
+    display: none;
   }
 }
 
@@ -578,7 +569,6 @@
     gap: 6px;
   }
 
-  .icon-btn,
   .hamburger {
     width: 36px;
     height: 36px;
@@ -587,18 +577,6 @@
   /* Login button hidden on mobile — drawer has Login / Logout */
   .login-btn {
     display: none;
-  }
-
-  /* Logged in: only avatar on mobile */
-  .profile-name,
-  .profile-chevron {
-    display: none;
-  }
-
-  .profile-btn {
-    height: auto;
-    padding: 0;
-    background: transparent;
   }
 
   .profile-dropdown {
@@ -617,13 +595,7 @@
     height: 50px;
   }
 
-  .icon-btn,
   .hamburger {
-    width: 34px;
-    height: 34px;
-  }
-
-  .profile-avatar {
     width: 34px;
     height: 34px;
   }
@@ -644,21 +616,9 @@
     height: 45px;
   }
 
-  .icon-btn,
   .hamburger {
     width: 30px;
     height: 30px;
-  }
-
-  .profile-avatar {
-    width: 30px;
-    height: 30px;
-    font-size: 13px;
-  }
-
-  .icon-btn svg {
-    width: 16px;
-    height: 16px;
   }
 
   .hamburger span {
@@ -689,21 +649,9 @@
     height: 40px;
   }
 
-  .icon-btn,
   .hamburger {
     width: 26px;
     height: 26px;
-  }
-
-  .profile-avatar {
-    width: 26px;
-    height: 26px;
-    font-size: 12px;
-  }
-
-  .icon-btn svg {
-    width: 14px;
-    height: 14px;
   }
 }
 
@@ -714,7 +662,6 @@
   .drawer,
   .drawer-link,
   .overlay,
-  .icon-btn,
   .login-btn,
   .profile-btn,
   .profile-item,

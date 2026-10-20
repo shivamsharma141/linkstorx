@@ -18,12 +18,12 @@ export async function findSubscriptionByUserId(userId) {
  * Filter me `appliedOrderIds: { $ne: orderId }` hai, isliye verify + webhook
  * dono ek saath chalein to bhi din sirf ek baar badhte hain.
  */
-export async function applyOrderToSubscription(userId, razorpayOrderId, data) {
+export async function applyOrderToSubscription(userId, cashfreeOrderId, data) {
   await connectToDatabase();
 
   try {
     const result = await Subscription.updateOne(
-      { userId, appliedOrderIds: { $ne: razorpayOrderId } },
+      { userId, appliedOrderIds: { $ne: cashfreeOrderId } },
       {
         $set: {
           plan: data.plan,
@@ -31,7 +31,7 @@ export async function applyOrderToSubscription(userId, razorpayOrderId, data) {
           expiresAt: data.expiresAt,
           lastPaymentId: data.paymentId,
         },
-        $push: { appliedOrderIds: razorpayOrderId },
+        $push: { appliedOrderIds: cashfreeOrderId },
       },
       { upsert: true }
     );
@@ -54,22 +54,22 @@ export async function createSubscriptionOrderRecord(data) {
   return SubscriptionOrder.create(data);
 }
 
-export async function findOrderByRazorpayOrderId(razorpayOrderId) {
+export async function findOrderByCashfreeOrderId(cashfreeOrderId) {
   await connectToDatabase();
 
-  return SubscriptionOrder.findOne({ razorpayOrderId });
+  return SubscriptionOrder.findOne({ cashfreeOrderId });
 }
 
 /* Sirf tab update hota hai jab order abhi "paid" nahi hai (idempotent). */
-export async function markOrderPaid(razorpayOrderId, paymentId) {
+export async function markOrderPaid(cashfreeOrderId, paymentId) {
   await connectToDatabase();
 
   return SubscriptionOrder.findOneAndUpdate(
-    { razorpayOrderId, status: { $ne: "paid" } },
+    { cashfreeOrderId, status: { $ne: "paid" } },
     {
       $set: {
         status: "paid",
-        razorpayPaymentId: paymentId,
+        cashfreePaymentId: paymentId,
         paidAt: new Date(),
       },
     },

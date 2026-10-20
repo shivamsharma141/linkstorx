@@ -69,6 +69,7 @@ export async function createSubscriptionOrderController(request) {
     const body = await request.json().catch(() => ({}));
 
     // Browser se SIRF plan ka naam liya jata hai. Price kabhi nahi.
+    // Response: { success, orderId, paymentSessionId, mode, planName }
     const order = await createSubscriptionOrder(user, body?.plan);
 
     return jsonResponse({ success: true, ...order });
@@ -88,6 +89,7 @@ export async function verifySubscriptionPaymentController(request) {
       return jsonResponse({ success: false, message: "Forbidden." }, 403);
     }
 
+    // Body: { order_id }
     const body = await request.json().catch(() => ({}));
 
     const summary = await verifyPaymentForUser(user.id, body);
@@ -99,15 +101,16 @@ export async function verifySubscriptionPaymentController(request) {
 }
 
 /* ---------------- POST /api/subscription/webhook ----------------
-   Login nahi hota — Razorpay ke signature se verify hota hai.
+   Login nahi hota — Cashfree ke signature se verify hota hai.
    Raw body chahiye, isliye request.text() use hota hai. */
 
 export async function subscriptionWebhookController(request) {
   try {
     const rawBody = await request.text();
-    const signature = request.headers.get("x-razorpay-signature") || "";
+    const signature = request.headers.get("x-webhook-signature") || "";
+    const timestamp = request.headers.get("x-webhook-timestamp") || "";
 
-    await processWebhook(rawBody, signature);
+    await processWebhook(rawBody, signature, timestamp);
 
     return jsonResponse({ success: true });
   } catch (error) {

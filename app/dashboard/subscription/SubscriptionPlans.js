@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
@@ -50,6 +50,9 @@ const PERKS = [
   { icon: 'headset', title: "We're Here to Help", text: 'Get support whenever you need assistance.' },
 ];
 
+const PAYMENT_PENDING_NOTE =
+  ' If money was deducted, your plan will activate automatically within a few minutes.';
+
 function Icon({ name }) {
   return (
     <svg viewBox="0 0 24 24">
@@ -75,6 +78,8 @@ export default function SubscriptionPlans({ plans, summary }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
 
+  const returnCheckDone = useRef(false);
+
   const currentPlan = plans.find((p) => p.id === summary.planId) || plans[0];
   const locked = Boolean(busyPlan) || verifying;
 
@@ -84,7 +89,7 @@ export default function SubscriptionPlans({ plans, summary }) {
 
   /* ---------- payment ke baad server se verify ---------- */
 
-  async function verifyPayment(response) {
+  async function verifyPayment(orderId) {
     setVerifying(true);
     setError('');
 
@@ -92,36 +97,45 @@ export default function SubscriptionPlans({ plans, summary }) {
       const res = await fetch('/api/subscription/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          razorpay_order_id: response.razorpay_order_id,
-          razorpay_payment_id: response.razorpay_payment_id,
-          razorpay_signature: response.razorpay_signature,
-        }),
+        // Sirf order_id. Payment ka asli status server, Cashfree se check karta hai.
+        body: JSON.stringify({ order_id: orderId }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.success) {
-        setError(
-          (data.message || 'We could not confirm your payment yet.') +
-            ' If money was deducted, your plan will activate automatically within a few minutes.'
-        );
+        setError((data.message || 'We could not confirm your payment yet.') + PAYMENT_PENDING_NOTE);
         return;
       }
 
       setSuccess(data.summary);
       router.refresh();
     } catch {
-      setError(
-        'We could not confirm your payment yet. If money was deducted, your plan will activate automatically within a few minutes.'
-      );
+      setError('We could not confirm your payment yet.' + PAYMENT_PENDING_NOTE);
     } finally {
       setVerifying(false);
       setBusyPlan(null);
     }
   }
 
-  /* ---------- plan choose -> order -> Razorpay checkout ---------- */
+  /* ---------- mobile UPI app se wapas aaye (return_url?order_id=...) ---------- */
+
+  useEffect(() => {
+    if (returnCheckDone.current) return;
+    returnCheckDone.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get('order_id');
+
+    if (!orderId) return;
+
+    // URL saaf karo taaki refresh pe dobara verify na ho
+    window.history.replaceState(null, '', window.location.pathname);
+    verifyPayment(orderId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ---------- plan choose -> order -> Cashfree checkout ---------- */
 
   async function handleChoose(planId) {
     setError('');
@@ -144,33 +158,34 @@ export default function SubscriptionPlans({ plans, summary }) {
         return;
       }
 
-      if (typeof window === 'undefined' || !window.Razorpay) {
+      if (typeof window === 'undefined' || !window.Cashfree) {
         setError('The payment window could not load. Please refresh the page and try again.');
         setBusyPlan(null);
         return;
       }
 
-      const checkout = new window.Razorpay({
-        key: data.keyId,
-        order_id: data.orderId,
-        name: 'LinkStorX',
-        description: `${data.planName} plan`,
-        prefill: data.prefill,
-        theme: { color: '#1a56ff' },
-        handler: (response) => {
-          verifyPayment(response);
-        },
-        modal: {
-          ondismiss: () => setBusyPlan(null),
-        },
+      const cashfree = window.Cashfree({ mode: data.mode });
+
+      const result = await cashfree.checkout({
+        paymentSessionId: data.paymentSessionId,
+        redirectTarget: '_modal',
       });
 
-      checkout.on('payment.failed', (failure) => {
-        setError(failure?.error?.description || 'Payment failed. Please try again.');
+      if (result?.error) {
+        // User ne popup band kiya ya payment fail hua
+        setError(result.error.message || 'Payment was not completed. Please try again.');
         setBusyPlan(null);
-      });
+        return;
+      }
 
-      checkout.open();
+      if (result?.paymentDetails) {
+        // Popup me payment ho gaya -> server se confirm karo
+        await verifyPayment(data.orderId);
+        return;
+      }
+
+      // result.redirect: page redirect ho gaya, return_url wala effect verify karega
+      setBusyPlan(null);
     } catch {
       setError('Network error. Please try again.');
       setBusyPlan(null);
@@ -208,7 +223,7 @@ export default function SubscriptionPlans({ plans, summary }) {
 
   return (
     <div className="sub-page">
-      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
+      <Script src="https://sdk.cashfree.com/js/v3/cashfree.js" strategy="lazyOnload" />
 
       <div className="sub-hero">
         <h1 className="sub-title">
