@@ -11,10 +11,23 @@ const NAV_LINKS = [
   { label: 'Dashboard', href: '/dashboard' },
   { label: 'Products', href: '/homepages/mainproducts' },
   { label: 'Myorders', href: '/homepages/myorders' },
-
   { label: 'Blogs', href: '/blogs' },
   { label: 'About', href: '/about' },
 ];
+
+function ArrowIcon() {
+  return (
+    <svg className="drawer-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M5 12h14M13 6l6 6-6 6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 // `user` layout (server) se aata hai: { username, email } ya null
 export default function Navbar({ user = null }) {
@@ -26,7 +39,7 @@ export default function Navbar({ user = null }) {
 
   const initial = user ? user.username.charAt(0).toUpperCase() : '';
 
-  // Add a slightly stronger glass effect once the page is scrolled
+  // Scroll hone par glass thoda strong ho jaye
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
@@ -34,7 +47,7 @@ export default function Navbar({ user = null }) {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Lock body scroll while the mobile drawer is open
+  // Drawer khula ho to body scroll lock
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : '';
     return () => {
@@ -42,13 +55,13 @@ export default function Navbar({ user = null }) {
     };
   }, [menuOpen]);
 
-  // Close the drawer + profile dropdown automatically on route change
+  // Route change par drawer + dropdown band
   useEffect(() => {
     setMenuOpen(false);
     setProfileOpen(false);
   }, [pathname]);
 
-  // Close on Escape key
+  // Escape key
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
@@ -60,7 +73,7 @@ export default function Navbar({ user = null }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Close profile dropdown on outside click
+  // Bahar click par profile dropdown band
   useEffect(() => {
     if (!profileOpen) return;
     const onClick = (e) => {
@@ -107,7 +120,7 @@ export default function Navbar({ user = null }) {
           {/* Right side actions */}
           <div className="nav-actions">
             {user ? (
-              /* Logged in — profile dropdown (desktop only) */
+              /* Logged in: profile dropdown (sirf desktop) */
               <div className="profile" ref={profileRef}>
                 <button
                   type="button"
@@ -150,7 +163,7 @@ export default function Navbar({ user = null }) {
                 )}
               </div>
             ) : (
-              /* Logged out — Login / Signup premium pill */
+              /* Logged out: Login pill (mobile par bhi dikhta hai) */
               <Link href="/login" className="login-btn" aria-label="Login or sign up">
                 <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <circle cx="12" cy="8" r="3.4" stroke="currentColor" strokeWidth="1.8" />
@@ -165,7 +178,7 @@ export default function Navbar({ user = null }) {
               </Link>
             )}
 
-            {/* Hamburger — mobile only */}
+            {/* Hamburger: sirf mobile */}
             <button
               type="button"
               className={`hamburger${menuOpen ? ' hamburger-open' : ''}`}
@@ -189,7 +202,7 @@ export default function Navbar({ user = null }) {
         aria-hidden="true"
       />
 
-      {/* Mobile drawer — slides in from the left */}
+      {/* Mobile drawer: left se right khulta hai */}
       <aside
         id="mobile-drawer"
         className={`drawer${menuOpen ? ' drawer-open' : ''}`}
@@ -230,7 +243,8 @@ export default function Navbar({ user = null }) {
                 className={`drawer-link${active ? ' drawer-link-active' : ''}`}
                 style={{ transitionDelay: `${menuOpen ? i * 60 + 80 : 0}ms` }}
               >
-                {link.label}
+                <span>{link.label}</span>
+                <ArrowIcon />
               </Link>
             );
           })}

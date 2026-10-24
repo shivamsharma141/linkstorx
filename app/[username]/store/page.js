@@ -47,10 +47,16 @@ export async function generateMetadata({ params }) {
   }
 }
 
-export default async function PublicStorePage({ params }) {
+export default async function PublicStorePage({ params, searchParams }) {
   const { username } = await params;
+  const query = (await searchParams) || {};
 
   const viewerUserId = await getViewerUserId();
+
+  /* ?lsPreview=1 editor ke live preview iframe ke liye hai.
+     Sirf logged-in user ke liye chalta hai (draft data waise bhi
+     viewer ke apne browser ke localStorage se aata hai). */
+  const previewMode = query.lsPreview === "1" && Boolean(viewerUserId);
 
   try {
     // Page publish nahi hai => store bhi live nahi (owner ko preview milega)
@@ -67,5 +73,5 @@ export default async function PublicStorePage({ params }) {
     notFound();
   }
 
-  return <PublicStoreView store={store} />;
+  return <PublicStoreView store={store} previewMode={previewMode} />;
 }

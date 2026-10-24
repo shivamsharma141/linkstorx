@@ -3,13 +3,30 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { formatMoney } from "@/app/config/storeFeatures";
 import CartIcon from "@/app/component/cart/CartIcon";
 import QuantitySelector from "@/app/component/cart/QuantitySelector";
 import AddToCartButton from "@/app/component/cart/AddToCartButton";
 import BuyNowButton from "@/app/component/cart/BuyNowButton";
 
 const DEFAULT_ACCENT = "#3a2b20";
+
+const CURRENCY_SYMBOL = { INR: "₹", USD: "$" };
+
+function money(value, currency) {
+  const code = currency === "USD" ? "USD" : "INR";
+  const amount = Number(value) || 0;
+
+  try {
+    return new Intl.NumberFormat(code === "USD" ? "en-US" : "en-IN", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${CURRENCY_SYMBOL[code]}${amount}`;
+  }
+}
 
 function ShareIcon() {
   return (
@@ -71,6 +88,9 @@ export default function PublicProductView({ product, username }) {
   const tags = product.tags || [];
   const maxQuantity = product.stock ? Math.min(product.stock, 99) : 99;
   const categoryLabel = product.subcategory || product.category;
+
+  const paidDelivery =
+    product.deliveryType === "paid" && Number(product.deliveryCharge) > 0;
 
   async function handleShare() {
     const url = window.location.href;
@@ -160,13 +180,13 @@ export default function PublicProductView({ product, username }) {
 
           <div className="ls-product-price-row">
             <span className="ls-price-now ls-price-now-lg">
-              {formatMoney(product.price, product.currency)}
+              {money(product.price, product.currency)}
             </span>
 
             {product.compareAtPrice && (
               <>
                 <span className="ls-price-was">
-                  {formatMoney(product.compareAtPrice, product.currency)}
+                  {money(product.compareAtPrice, product.currency)}
                 </span>
                 <span className="ls-product-discount-tag">
                   {product.discountPercent}% off
@@ -174,6 +194,16 @@ export default function PublicProductView({ product, username }) {
               </>
             )}
           </div>
+
+          <p
+            className={
+              paidDelivery ? "ls-delivery-note" : "ls-delivery-note ls-delivery-free"
+            }
+          >
+            {paidDelivery
+              ? `+ ${money(product.deliveryCharge, product.currency)} delivery charge`
+              : "Free delivery"}
+          </p>
 
           <p
             className={`ls-stock ${product.inStock ? "ls-stock-in" : "ls-stock-out"}`}

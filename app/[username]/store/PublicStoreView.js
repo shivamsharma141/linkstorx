@@ -44,6 +44,33 @@ function buildStoreTheme(accent, background) {
   };
 }
 
+/* Pehla letter capital: "premium hoodie" -> "Premium hoodie" */
+function capFirst(value) {
+  return String(value ?? "").replace(/^(\s*)(\S)/, (m, space, ch) => space + ch.toUpperCase());
+}
+
+/* =========================================================
+   CURRENCY
+========================================================= */
+
+const CURRENCY_SYMBOL = { INR: "₹", USD: "$" };
+
+function money(value, currency) {
+  const code = currency === "USD" ? "USD" : "INR";
+  const amount = Number(value) || 0;
+
+  try {
+    return new Intl.NumberFormat(code === "USD" ? "en-US" : "en-IN", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${CURRENCY_SYMBOL[code]}${amount}`;
+  }
+}
+
 /* =========================================================
    SHOP ACTION HELPERS (auth check + pending action)
 ========================================================= */
@@ -145,10 +172,22 @@ const ICO = {
 /* =========================================================
    PRODUCT CARD
 ========================================================= */
-function ProductCard({ product, seller, accent }) {
+function ProductCard({ product, seller, accent, preview = false }) {
   const router = useRouter();
 
-  const { id, name, description, images = [], price, mrp, inStock = true } = product;
+  const {
+    id,
+    name,
+    description,
+    images = [],
+    price,
+    compareAtPrice: mrp,
+    currency = "INR",
+    deliveryType = "free",
+    deliveryCharge = 0,
+    inStock = true,
+    isDraft = false,
+  } = product;
 
   const productHref = `/${seller.username}/store/${product.slug || id}`;
 
@@ -159,6 +198,9 @@ function ProductCard({ product, seller, accent }) {
 
   const discount = mrp && mrp > price ? Math.round(((mrp - price) / mrp) * 100) : null;
 
+  // Image delete hone par index bahar na nikle
+  const safeIndex = images.length > 0 ? Math.min(imgIndex, images.length - 1) : 0;
+
   function changeImage(dir, e) {
     e.preventDefault();
     e.stopPropagation();
@@ -167,7 +209,7 @@ function ProductCard({ product, seller, accent }) {
   }
 
   async function handleShopAction(type) {
-    if (!inStock || busy) return;
+    if (preview || !inStock || busy) return;
     setBusy(true);
 
     try {
@@ -195,7 +237,7 @@ function ProductCard({ product, seller, accent }) {
     <div className="ls-product-card">
       <Link href={productHref} className="ls-product-card-media">
         {images.length > 0 ? (
-          <img src={images[imgIndex]} alt={name} />
+          <img src={images[safeIndex]} alt={name} />
         ) : (
           <div className="ls-product-card-placeholder">
             <Ico d="M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z|M8.5 10a1.5 1.5 0 100-3 1.5 1.5 0 000 3z|M21 15l-5-5L5 21" size={34} />
@@ -203,6 +245,9 @@ function ProductCard({ product, seller, accent }) {
         )}
 
         {discount && <span className="ls-product-card-badge">{discount}% OFF</span>}
+
+        {/* Sirf editor preview mein: ye product abhi draft hai */}
+        {preview && isDraft && <span className="ls-product-card-draft">Draft</span>}
 
         {!inStock && <div className="ls-product-card-oos">Out of Stock</div>}
 
@@ -218,7 +263,7 @@ function ProductCard({ product, seller, accent }) {
             </div>
             <div className="ls-product-card-dots">
               {images.map((_, i) => (
-                <span key={i} className={i === imgIndex ? "ls-dot-active" : ""} />
+                <span key={i} className={i === safeIndex ? "ls-dot-active" : ""} />
               ))}
             </div>
           </>
@@ -242,15 +287,21 @@ function ProductCard({ product, seller, accent }) {
       </Link>
 
       <div className="ls-product-card-body">
-        <Link href={productHref} className="ls-product-card-name">{name}</Link>
+        <Link href={productHref} className="ls-product-card-name">{capFirst(name)}</Link>
 
-        {description && <p className="ls-product-card-desc">{description}</p>}
+        {description && <p className="ls-product-card-desc">{capFirst(description)}</p>}
 
         <div className="ls-product-card-price">
-          <span className="ls-price-now">₹{price}</span>
-          {mrp && mrp > price && <span className="ls-price-was">₹{mrp}</span>}
+          <span className="ls-price-now">{money(price, currency)}</span>
+          {mrp && mrp > price && <span className="ls-price-was">{money(mrp, currency)}</span>}
           {discount && <span className="ls-price-off">{discount}% off</span>}
         </div>
+
+        <p className={deliveryType === "paid" ? "ls-delivery-note" : "ls-delivery-note ls-delivery-free"}>
+          {deliveryType === "paid" && deliveryCharge > 0
+            ? `+ ${money(deliveryCharge, currency)} delivery`
+            : "Free delivery"}
+        </p>
 
         <div className="ls-product-card-actions">
           <button
@@ -278,9 +329,18 @@ function ProductCard({ product, seller, accent }) {
 /* =========================================================
    MAIN STORE VIEW
 ========================================================= */
-export default function PublicStoreView({ store }) {
-  const { seller, products } = store;
+export default function PublicStoreView({ store, previewMode = false }) {
+  const { seller } = store;
   const router = useRouter();
+
+  /* Live preview: product editor draft ko localStorage mein likhta hai
+     (same origin), ye page usse padhkar REAL store mein merge karta hai. */
+  const [draftProduct, setDraftProduct] = useState(null);
+
+  const products = useMemo(() => {
+    if (!previewMode || !draftProduct) return store.products;
+    return [draftProduct, ...store.products.filter((p) => p.id !== draftProduct.id)];
+  }, [store.products, previewMode, draftProduct]);
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
@@ -305,8 +365,56 @@ export default function PublicStoreView({ store }) {
     };
   }, [background]);
 
+  /* ---------- live preview (only inside the editor's iframe) ---------- */
+  useEffect(() => {
+    if (!previewMode) return;
+
+    const key = new URLSearchParams(window.location.search).get("lsDraft") || "";
+    if (!key.startsWith("ls_draft:")) return;
+
+    let lastRaw = null;
+
+    function read() {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw === lastRaw) return;
+        lastRaw = raw;
+
+        const data = raw ? JSON.parse(raw) : null;
+        const p = data?.preview;
+
+        if (p && typeof p === "object") {
+          setDraftProduct({
+            ...p,
+            images: Array.isArray(p.images) ? p.images : [],
+            tags: Array.isArray(p.tags) ? p.tags : [],
+          });
+        } else {
+          setDraftProduct(null);
+        }
+      } catch {
+        setDraftProduct(null);
+      }
+    }
+
+    function onStorage(event) {
+      if (event.key === key || event.key === null) read();
+    }
+
+    read();
+    window.addEventListener("storage", onStorage);
+    const poll = setInterval(read, 800); // safety net agar storage event miss ho jaye
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      clearInterval(poll);
+    };
+  }, [previewMode]);
+
   /* ---------- resume pending action after login ---------- */
   useEffect(() => {
+    if (previewMode) return;
+
     const pending = consumePendingAction();
     if (!pending) return;
 
@@ -386,7 +494,7 @@ export default function PublicStoreView({ store }) {
   }
 
   async function handleShare() {
-    const url = window.location.href;
+    const url = window.location.href.split("?")[0]; // preview params share na ho
 
     if (navigator.share) {
       try {
@@ -409,8 +517,37 @@ export default function PublicStoreView({ store }) {
 
   const sellerName = seller.displayName || seller.username;
 
+  /* Seller not verified => store is closed for customers, show a message.
+     Editor preview (previewMode) ko ye message nahi dikhta. */
+  if (store.verified === false && !previewMode) {
+    return (
+      <div className="ls-store-page" style={themeVars}>
+        <div className="ls-store-pending">
+          <h2 className="ls-store-pending-title">Please wait for verification</h2>
+          <p className="ls-store-pending-text">
+            Once your seller account is verified, you can preview your page. We will contact
+            you soon, and your store will open within 24 hours.
+          </p>
+          <Link href={`/${seller.username}`} className="ls-btn ls-btn-primary">
+            Back to profile
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="ls-store-page" style={themeVars}>
+    <div
+      className="ls-store-page"
+      style={themeVars}
+      onClickCapture={
+        previewMode
+          ? (e) => {
+              if (e.target.closest("a")) e.preventDefault();
+            }
+          : undefined
+      }
+    >
       {/* HEADER */}
       <header className="ls-store-header">
         <div className="ls-store-seller">
@@ -522,7 +659,7 @@ export default function PublicStoreView({ store }) {
               </div>
               <div className="ls-store-carousel" ref={carouselRef}>
                 {featured.map((p) => (
-                  <ProductCard key={p.id} product={p} seller={seller} accent={accent} />
+                  <ProductCard key={p.id} product={p} seller={seller} accent={accent} preview={previewMode} />
                 ))}
               </div>
             </section>
@@ -547,7 +684,7 @@ export default function PublicStoreView({ store }) {
             </div>
             <div className="ls-store-grid">
               {filtered.map((p) => (
-                <ProductCard key={p.id} product={p} seller={seller} accent={accent} />
+                <ProductCard key={p.id} product={p} seller={seller} accent={accent} preview={previewMode} />
               ))}
             </div>
           </section>

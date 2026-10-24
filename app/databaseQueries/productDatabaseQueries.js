@@ -1,5 +1,5 @@
 import { connectToDatabase } from "@/app/lib/database/mongodb";
-import Product from "@/app/databaseModels/Product";
+import Product, { Seller } from "@/app/databaseModels/Product";
 
 /* =========================================================
    SELLER-SCOPED QUERIES (dashboard)
@@ -109,4 +109,45 @@ export async function findProductsByIds(productIds) {
   await connectToDatabase();
 
   return Product.find({ _id: { $in: productIds } });
+}
+
+/* =========================================================
+   SELLER QUERIES
+========================================================= */
+
+export async function findSellerByUserId(userId) {
+  await connectToDatabase();
+  return Seller.findOne({ userId });
+}
+
+export async function upsertSellerByUserId(userId, data) {
+  await connectToDatabase();
+
+  return Seller.findOneAndUpdate({ userId }, data, {
+    new: true,
+    upsert: true,
+    runValidators: true,
+    setDefaultsOnInsert: true,
+  });
+}
+
+/* Admin only — explicitly pulls the encrypted fields. */
+export async function findSellersForAdmin(status) {
+  await connectToDatabase();
+
+  const query = status ? { sellerStatus: status } : {};
+
+  return Seller.find(query)
+    .select("+accountNumberEnc +ifscEnc")
+    .sort({ createdAt: -1 })
+    .limit(200);
+}
+
+export async function updateSellerById(sellerId, data) {
+  await connectToDatabase();
+
+  return Seller.findByIdAndUpdate(sellerId, data, {
+    new: true,
+    runValidators: true,
+  });
 }

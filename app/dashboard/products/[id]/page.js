@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/app/lib/auth/auth";
 import { getProfileForDashboard } from "@/app/businessLogic/profileBusinessLogic";
-import { getProductForDashboard } from "@/app/businessLogic/productBusinessLogic";
+import {
+  getProductForDashboard,
+  getSellerStatusForUser,
+} from "@/app/businessLogic/productBusinessLogic";
 
 import ProductEditor from "../ProductEditor";
 
@@ -14,7 +17,10 @@ export default async function EditProductPage({ params }) {
 
   const user = await requireAuth();
 
-  const profile = await getProfileForDashboard(user.id, user.username);
+  const [profile, sellerInfo] = await Promise.all([
+    getProfileForDashboard(user.id, user.username),
+    getSellerStatusForUser(user.id),
+  ]);
 
   let product;
 
@@ -31,6 +37,7 @@ export default async function EditProductPage({ params }) {
         productId={id}
         initialProduct={product}
         sellerUsername={profile.username}
+        sellerInfo={sellerInfo}
       />
     </main>
   );
