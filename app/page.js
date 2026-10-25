@@ -166,7 +166,7 @@ export default async function Home() {
         <section className="lx-hero">
           <div className="lx-wrap lx-hero-grid">
             <div className="lx-hero-text">
-              <h1>A linkss in bio that is also your store.</h1>
+              <h1>A link  in bio that is also your store and marketplace.</h1>
 
               <p className="lx-lead">
                 LinkStorX is a link-in-bio platform, but it is not just a page of links.
