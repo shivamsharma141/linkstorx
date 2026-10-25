@@ -112,3 +112,78 @@ export async function cancelOrderByBuyerAtomic({ orderNumber, buyerId, reason, a
     { new: true }
   ).lean();
 }
+
+/* ---------- payments ---------- */
+
+export async function findOrderByRazorpayId(razorpayOrderId) {
+  await connectToDatabase();
+  return Order.findOne({ "payment.razorpayOrderId": String(razorpayOrderId || "") }).lean();
+}
+
+/* Generic: dotted fields set karo, updated order wapas milega */
+export async function patchOrder(orderNumber, set) {
+  await connectToDatabase();
+  return Order.findOneAndUpdate({ orderNumber }, { $set: set }, { new: true }).lean();
+}
+
+/**
+ * Payment mil gayi -> ATOMIC.
+ * Sirf tab jab payment abhi "initiated" ho aur order cancel na hua ho.
+ * Verify route + webhook dono aa jayein to bhi sirf ek hi baar update hoga.
+ * sellerSeen=false -> seller ko "new order" notification.
+ */
+export async function markOrderPaid(orderNumber, paymentId) {
+  await connectToDatabase();
+  return Order.findOneAndUpdate(
+    { orderNumber, "payment.status": "initiated", status: { $ne: "cancelled" } },
+    {
+      $set: {
+        "payment.status": "paid",
+        "payment.razorpayPaymentId": String(paymentId),
+        "payment.paidAt": new Date(),
+        sellerSeen: false,
+      },
+    },
+    { new: true }
+  ).lean();
+}
+
+/**
+ * Jo online orders ka payment minutes se zyada se "initiated" hai unhe
+ * cancel karke stock wapas kar do. placeOrder se pehle chalta hai.
+ */
+export async function expireUnpaidOrders(minutes = 45) {
+  await connectToDatabase();
+  const cutoff = new Date(Date.now() - minutes * 60000);
+
+  const stale = await Order.find({
+    "payment.method": "razorpay",
+    "payment.status": "initiated",
+    status: "pending",
+    createdAt: { $lt: cutoff },
+  })
+    .limit(50)
+    .lean();
+
+  let expired = 0;
+  for (const o of stale) {
+    const done = await Order.findOneAndUpdate(
+      { _id: o._id, "payment.status": "initiated" },
+      {
+        $set: {
+          status: "cancelled",
+          "payment.status": "failed",
+          "cancellation.reason": "Payment not completed",
+          "cancellation.cancelledAt": new Date(),
+        },
+      },
+      { new: true }
+    ).lean();
+
+    if (done) {
+      await releaseStock(done.items);
+      expired++;
+    }
+  }
+  return expired;
+}

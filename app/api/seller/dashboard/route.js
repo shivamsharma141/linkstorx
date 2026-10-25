@@ -5,6 +5,8 @@ import mongoose from "mongoose";
 import { connectToDatabase } from "@/app/lib/database/mongodb.js";
 import Order from "@/app/databaseModels/Order";
 import { requireAuth } from "@/app/lib/auth/auth";
+import { refundIfPaid, HIDDEN_FROM_SELLER } from "@/app/businessLogic/orderLogic";
+import { FEE_CONFIG, toRupees, payoutDueDate } from "@/app/lib/razorpay/settlement";
 
 // requireAuth redirect/throw kar sakta hai -> API me hum 401 JSON dena chahte hain
 async function getCurrentUser() {
@@ -45,6 +47,9 @@ const SELLER_TRANSITIONS = {
 
 const json = (body, status = 200) => NextResponse.json(body, { status });
 
+// Seller ko sirf wahi orders dikhte hain jinka payment aa chuka hai (unpaid/failed online orders hidden)
+const visible = (sellerId) => ({ sellerId, "payment.status": { $nin: HIDDEN_FROM_SELLER } });
+
 function toSkip(value) {
   return Math.max(0, parseInt(value || "0", 10) || 0);
 }
@@ -53,7 +58,23 @@ function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/* Payout state: none | after_delivery | eligible | paid_out */
+function payoutInfo(o) {
+  const p = o.payment || {};
+  const s = o.settlement || {};
+  if (p.method !== "razorpay" || p.status !== "paid" || o.status === "cancelled") {
+    return { state: "none", dueBy: null };
+  }
+  if (s.payoutStatus === "paid") return { state: "paid_out", dueBy: s.payoutDueBy || null };
+  if (o.status === "delivered") {
+    return { state: "eligible", dueBy: s.payoutDueBy || (s.deliveredAt ? payoutDueDate(s.deliveredAt) : null) };
+  }
+  return { state: "after_delivery", dueBy: null };
+}
+
 function orderDTO(o) {
+  const s = o.settlement || {};
+  const payout = payoutInfo(o);
   return {
     _id: String(o._id),
     orderNumber: o.orderNumber,
@@ -66,13 +87,28 @@ function orderDTO(o) {
       currency: i.currency || o.currency,
       quantity: i.quantity,
       lineTotal: i.lineTotal,
+      deliveryCharge: i.deliveryCharge || 0,
     })),
     totalQty: o.totalQty,
     subtotal: o.subtotal,
+    deliveryTotal: o.deliveryTotal || 0,
+    total: o.total > 0 ? o.total : o.subtotal, // purane orders me total nahi hota
     currency: o.currency || "INR",
     payment: {
       method: o.payment?.method || "pay_to_seller",
-      status: o.payment?.status === "paid" ? "paid" : "pending",
+      status: o.payment?.status || "pending",
+      paidAt: o.payment?.paidAt || null,
+    },
+    settlement: {
+      customerPaid: toRupees(o.payment?.amountPaise),
+      gatewayFee: toRupees(s.gatewayFeePaise),
+      gstOnFee: toRupees(s.gstOnFeePaise),
+      platformFee: toRupees(s.platformFeePaise),
+      sellerNet: toRupees(s.sellerNetPaise),
+      deliveredAt: s.deliveredAt || null,
+      payoutState: payout.state,
+      payoutDueBy: payout.dueBy,
+      paidOutAt: s.paidOutAt || null,
     },
     customer: {
       name: o.customer?.name || "",
@@ -95,7 +131,7 @@ function orderDTO(o) {
 
 /* ---------- orders list (status filter + search + 10 at a time) ---------- */
 async function fetchOrders(sellerId, { skip = 0, status = "", q = "" } = {}) {
-  const filter = { sellerId };
+  const filter = visible(sellerId);
 
   if (ORDER_STATUSES.includes(status)) filter.status = status;
 
@@ -157,7 +193,7 @@ function customerBase(match) {
 
 async function fetchCustomers(sellerId, skip = 0) {
   const rows = await Order.aggregate([
-    ...customerBase({ sellerId }),
+    ...customerBase(visible(sellerId)),
     { $sort: { lastOrderAt: -1 } },
     { $skip: skip },
     { $limit: CUSTOMER_PAGE + 1 },
@@ -174,6 +210,52 @@ async function fetchCustomers(sellerId, skip = 0) {
       lastOrderAt: c.lastOrderAt,
     })),
     hasMore: rows.length > CUSTOMER_PAGE,
+  };
+}
+
+/* ---------- earnings (online paid orders, cancelled/refunded count nahi hote) ---------- */
+async function fetchEarnings(sellerId) {
+  const net = "$settlement.sellerNetPaise";
+  const isPaidOut = { $eq: ["$settlement.payoutStatus", "paid"] };
+  const isDelivered = { $eq: ["$status", "delivered"] };
+
+  const [row] = await Order.aggregate([
+    {
+      $match: {
+        sellerId,
+        "payment.method": "razorpay",
+        "payment.status": "paid",
+        status: { $ne: "cancelled" },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        gross: { $sum: "$payment.amountPaise" },
+        gatewayFee: { $sum: "$settlement.gatewayFeePaise" },
+        gstOnFee: { $sum: "$settlement.gstOnFeePaise" },
+        platformFee: { $sum: "$settlement.platformFeePaise" },
+        net: { $sum: net },
+        paidOut: { $sum: { $cond: [isPaidOut, net, 0] } },
+        eligible: { $sum: { $cond: [{ $and: [{ $not: [isPaidOut] }, isDelivered] }, net, 0] } },
+      },
+    },
+  ]);
+
+  const r = row || {};
+  const eligible = r.eligible || 0;
+  const paidOut = r.paidOut || 0;
+  const total = r.net || 0;
+
+  return {
+    gross: toRupees(r.gross),
+    gatewayFee: toRupees(r.gatewayFee),
+    gstOnFee: toRupees(r.gstOnFee),
+    platformFee: toRupees(r.platformFee),
+    net: toRupees(total),
+    eligible: toRupees(eligible), // delivered, payout abhi baaki
+    upcoming: toRupees(Math.max(0, total - eligible - paidOut)), // paid par abhi deliver nahi hua
+    paidOut: toRupees(paidOut),
   };
 }
 
@@ -231,7 +313,7 @@ export async function GET(req) {
       if (!id || !mongoose.Types.ObjectId.isValid(id)) {
         return json({ success: false, message: "Invalid order" }, 400);
       }
-      const order = await Order.findOne({ _id: id, sellerId }).lean();
+      const order = await Order.findOne({ _id: id, ...visible(sellerId) }).lean();
       if (!order) return json({ success: false, message: "Order not found" }, 404);
       return json({ success: true, order: orderDTO(order) });
     }
@@ -240,26 +322,16 @@ export async function GET(req) {
     const rangeParam = searchParams.get("range") || "all";
     const days = ["7", "30", "90"].includes(rangeParam) ? parseInt(rangeParam, 10) : null;
 
-    const rangeMatch = { sellerId };
+    const base = visible(sellerId);
+    const rangeMatch = { ...base };
     if (days) rangeMatch.createdAt = { $gte: new Date(Date.now() - days * 86400000) };
 
     const cancelSince = new Date(Date.now() - RECENT_CANCEL_DAYS * 86400000);
 
-    const [statusAll, kpiAgg, customersInRange, customersPage, recentCancelled, unseen, lowStock] =
+    const [statusAll, kpiAgg, customersInRange, customersPage, recentCancelled, unseen, lowStock, earnings] =
       await Promise.all([
-        // all-time: status cards, pending count, "to collect"
-        Order.aggregate([
-          { $match: { sellerId } },
-          {
-            $group: {
-              _id: "$status",
-              count: { $sum: 1 },
-              unpaid: {
-                $sum: { $cond: [{ $ne: ["$payment.status", "paid"] }, "$subtotal", 0] },
-              },
-            },
-          },
-        ]),
+        // all-time: status cards, pending count
+        Order.aggregate([{ $match: base }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
         // selected range: orders / sales
         Order.aggregate([
           { $match: rangeMatch },
@@ -267,21 +339,19 @@ export async function GET(req) {
         ]),
         Order.aggregate([...customerBase(rangeMatch), { $count: "n" }]),
         fetchCustomers(sellerId, 0),
-        Order.countDocuments({ sellerId, status: "cancelled", updatedAt: { $gte: cancelSince } }),
-        Order.find({ sellerId, sellerSeen: false })
+        Order.countDocuments({ ...base, status: "cancelled", updatedAt: { $gte: cancelSince } }),
+        Order.find({ ...base, sellerSeen: false })
           .sort({ createdAt: -1 })
           .limit(5)
-          .select("orderNumber status createdAt updatedAt cancellation")
+          .select("orderNumber status createdAt updatedAt cancellation payment")
           .lean(),
         getLowStock(sellerId),
+        fetchEarnings(sellerId),
       ]);
 
     const statusCounts = { pending: 0, confirmed: 0, shipped: 0, delivered: 0, cancelled: 0 };
-    let toCollect = 0;
     for (const row of statusAll) {
       if (row._id in statusCounts) statusCounts[row._id] = row.count;
-      // cancelled order ka paisa nahi aana
-      if (row._id !== "cancelled") toCollect += row.unpaid;
     }
 
     // sales = sirf delivered orders (cancelled kabhi count nahi hota)
@@ -308,8 +378,8 @@ export async function GET(req) {
           id: `n-${o._id}`,
           type: "new_order",
           orderId: String(o._id),
-          text: `You received a new order #${o.orderNumber}`,
-          at: o.createdAt,
+          text: `You received a new order #${o.orderNumber}${o.payment?.status === "paid" ? " (paid online)" : ""}`,
+          at: o.payment?.paidAt || o.createdAt,
         });
       }
     }
@@ -338,8 +408,14 @@ export async function GET(req) {
         totalOrders,
         totalSales,
         totalCustomers: customersInRange[0]?.n || 0,
-        toCollect,
         currency: "INR",
+      },
+      earnings,
+      feeRates: {
+        gatewayPercent: FEE_CONFIG.gatewayPercent,
+        gstPercent: FEE_CONFIG.gstPercent,
+        platformFee: toRupees(FEE_CONFIG.platformFeePaise),
+        payoutDays: FEE_CONFIG.payoutDelayDays,
       },
       statusCounts,
       customers: customersPage.customers,
@@ -386,9 +462,8 @@ export async function POST(req) {
 }
 
 /* =========================================================
-   PATCH — status badalna YA payment received mark karna
+   PATCH — status badalna YA (sirf purane orders me) payment received mark karna
    body: { orderId, status, reason }  ya  { orderId, paymentStatus }
-   Buyer ko change isi Order document se dikhta hai (same DB record).
    ========================================================= */
 export async function PATCH(req) {
   try {
@@ -404,13 +479,14 @@ export async function PATCH(req) {
     await connectToDatabase();
     const sellerId = new mongoose.Types.ObjectId(String(user._id));
 
-    /* ---- payment received / not received ---- */
+    /* ---- payment received / not received (sirf purane pay_to_seller orders) ---- */
     if (paymentStatus !== undefined && status === undefined) {
       if (!PAYMENT_STATUSES.includes(paymentStatus)) {
         return json({ success: false, message: "Invalid payment status" }, 400);
       }
+      // Online (Razorpay) orders ka payment automatic hai -> seller badal nahi sakta
       const updatedPay = await Order.findOneAndUpdate(
-        { _id: orderId, sellerId, status: { $ne: "cancelled" } },
+        { _id: orderId, sellerId, status: { $ne: "cancelled" }, "payment.method": { $ne: "razorpay" } },
         { $set: { "payment.status": paymentStatus } },
         { new: true }
       ).lean();
@@ -444,10 +520,17 @@ export async function PATCH(req) {
         cancelledAt: new Date(),
       };
     }
+    if (status === "delivered") {
+      // Delivery ke baad 7 din ke andar payout
+      const now = new Date();
+      update["settlement.deliveredAt"] = now;
+      update["settlement.payoutDueBy"] = payoutDueDate(now);
+    }
 
     // Atomic: sellerId + current status filter me hai -> race condition aur doosre seller ka order dono safe
+    // visible() -> unpaid online order ka status seller badal nahi sakta
     const updated = await Order.findOneAndUpdate(
-      { _id: orderId, sellerId, status: { $in: allowedFrom } },
+      { _id: orderId, ...visible(sellerId), status: { $in: allowedFrom } },
       { $set: update },
       { new: true }
     ).lean();
@@ -456,7 +539,9 @@ export async function PATCH(req) {
       return json({ success: false, message: "This order can't be moved to that status" }, 409);
     }
 
-    // Cancel par stock wapas (sirf un items ka jinka trackInventory on tha)
+    let finalOrder = updated;
+
+    // Cancel par stock wapas + paid online order ka refund
     if (status === "cancelled") {
       try {
         const { default: Product } = await import("@/app/databaseModels/Product");
@@ -472,9 +557,11 @@ export async function PATCH(req) {
       } catch (err) {
         console.error("[seller dashboard] stock restore failed", err);
       }
+
+      finalOrder = (await refundIfPaid(updated)) || updated;
     }
 
-    return json({ success: true, order: orderDTO(updated) });
+    return json({ success: true, order: orderDTO(finalOrder) });
   } catch (err) {
     console.error("[seller dashboard status]", err);
     return json({ success: false, message: "Could not update the order" }, 500);

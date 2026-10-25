@@ -32,19 +32,19 @@ const NEXT_ACTION = {
     to: "confirmed",
     label: "Confirm Order",
     short: "Confirm",
-    help: "Step 1: Contact the customer by Call or WhatsApp and confirm the order, delivery address, payment method and delivery details. Tell the customer that payment must be done before delivery. Once the customer confirms, click Confirm Order.",
+    help: "Step 1: The customer has already paid online. Contact the customer by Call or WhatsApp, confirm the delivery address and delivery details, then click Confirm Order.",
   },
   confirmed: {
     to: "shipped",
     label: "Mark as shipped",
     short: "Mark shipped",
-    help: "Step 2: Your customer has confirmed the order. Collect the payment from the customer first, then pack the product and arrange delivery yourself. Once the parcel has been handed over for delivery, mark the order as shipped.",
+    help: "Step 2: Pack the product and arrange delivery yourself. Once the parcel has been handed over for delivery, mark the order as shipped.",
   },
   shipped: {
     to: "delivered",
     label: "Mark as delivered",
     short: "Deliver",
-    help: "Step 3: The order is on the way. Delivery is currently handled by the seller. Make sure the payment is received before the product is delivered, then tap Payment received and mark the order as delivered.",
+    help: "Step 3: The order is on the way. Once the customer has received the product, mark it as delivered. Your payout becomes eligible right after delivery.",
   },
 };
 
@@ -55,11 +55,9 @@ const STATUS_TOAST = {
 };
 
 const PENDING_CHECKLIST = [
-  "Customer actually placed the order",
   "Product / order details",
   "Delivery address and phone number",
   "Customer still wants the order",
-  "Payment method (payment before delivery)",
   "Delivery arrangement",
 ];
 
@@ -265,38 +263,55 @@ function waMessage(order, storeName) {
 
   switch (order.status) {
     case "confirmed":
-      return `Hi ${name}, this is ${store}. Your order #${no} is confirmed and we are getting it ready. Please complete the payment as agreed before delivery. We will let you know when it is on the way.`;
+      return `Hi ${name}, this is ${store}. Your order #${no} is confirmed and we are getting it ready. We will let you know when it is on the way.`;
     case "shipped":
-      return `Hi ${name}, this is ${store}. Your order #${no} is on the way! Order total: ${total}. Payment needs to be completed before delivery.`;
+      return `Hi ${name}, this is ${store}. Your order #${no} is on the way! Order total: ${total}.`;
     case "delivered":
       return `Hi ${name}, thank you for shopping with ${store}! Your order #${no} has been delivered. We hope you like it.`;
     case "cancelled":
       return `Hi ${name}, this is ${store}. We are writing about your cancelled order #${no}.`;
     default: // pending
-      return `Hello Sir/Madam ${name},
+      return `Hello ${name},
 
-This is ${store} from LinkStorX. You have placed an order with us.
+This is ${store} from LinkStorX. Thank you for your order, we have received your payment.
 
 Order ID: #${no}
-Name: ${name}
 Items:
 ${itemLines}
 Order total: ${total}
 Delivery address: ${address}
 
-Please reply YES to confirm your order. Also confirm:
-1. Your delivery address is correct
-2. Your preferred payment method
-3. Delivery details
-
-Please note: payment needs to be completed before delivery.
-
-Once you confirm, we will process your order. Thank you!`;
+Please reply YES to confirm that your delivery address and phone number are correct. Once you confirm, we will process your order. Thank you!`;
   }
 }
 
 function waUrl(phone, text) {
   return `https://wa.me/${cleanPhone(phone)}?text=${encodeURIComponent(text)}`;
+}
+
+// Payment badge ka text + style (online / purane orders dono)
+function payLabel(order) {
+  const p = order.payment || {};
+  if (p.status === "refunded") return { text: "Refunded", cls: "sd-paybadge-due" };
+  if (p.status === "refund_pending") return { text: "Refund pending", cls: "sd-paybadge-due" };
+  if (order.status === "cancelled") return null;
+  if (p.status === "paid") {
+    return { text: p.method === "razorpay" ? "Paid online" : "Payment received", cls: "sd-paybadge-paid" };
+  }
+  return { text: "Payment due", cls: "sd-paybadge-due" };
+}
+
+function payoutText(s, days) {
+  switch (s.payoutState) {
+    case "eligible":
+      return `Eligible for payout. You will receive it by ${formatDate(s.payoutDueBy)}.`;
+    case "paid_out":
+      return `Paid out to you${s.paidOutAt ? ` on ${formatDate(s.paidOutAt)}` : ""}.`;
+    case "after_delivery":
+      return `Becomes eligible once the order is delivered. Payout is made within ${days} days of delivery.`;
+    default:
+      return "";
+  }
 }
 
 /* ---------------- small components ---------------- */
@@ -306,17 +321,13 @@ function StatusBadge({ status }) {
 }
 
 function PayBadge({ order }) {
-  if (order.status === "cancelled") return null;
-  const paid = order.payment?.status === "paid";
-  return (
-    <span className={`sd-paybadge ${paid ? "sd-paybadge-paid" : "sd-paybadge-due"}`}>
-      {paid ? "Payment received" : "Payment due"}
-    </span>
-  );
+  const l = payLabel(order);
+  if (!l) return null;
+  return <span className={`sd-paybadge ${l.cls}`}>{l.text}</span>;
 }
 
 function PayCell({ order }) {
-  if (order.status === "cancelled") return <span className="sd-person-meta">—</span>;
+  if (!payLabel(order)) return <span className="sd-person-meta">—</span>;
   return <PayBadge order={order} />;
 }
 
@@ -406,7 +417,7 @@ function StepTracker({ status }) {
 }
 
 /* ---------------- order manager (modal) ---------------- */
-function OrderModal({ order, storeName, onClose, onStatusChange, onPaymentChange, onCopy }) {
+function OrderModal({ order, storeName, rates, onClose, onStatusChange, onPaymentChange, onCopy }) {
   const [busy, setBusy] = useState(false);
   const [payBusy, setPayBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -417,8 +428,11 @@ function OrderModal({ order, storeName, onClose, onStatusChange, onPaymentChange
   const canCancel = SELLER_CANCELLABLE.includes(order.status);
   const cancelled = order.status === "cancelled";
   const paid = order.payment?.status === "paid";
+  const isOnline = order.payment?.method === "razorpay";
+  const st = order.settlement || {};
   const c = order.customer || {};
   const cancel = order.cancellation || {};
+  const fm = (v) => formatMoney(v, order.currency);
 
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
@@ -542,6 +556,11 @@ function OrderModal({ order, storeName, onClose, onStatusChange, onPaymentChange
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="e.g. Item is out of stock"
                 />
+                {isOnline && paid && (
+                  <p className="sd-subnote">
+                    The customer has already paid online. The full amount will be refunded to them automatically.
+                  </p>
+                )}
                 <div className="sd-status-actions">
                   <button
                     type="button"
@@ -602,29 +621,83 @@ function OrderModal({ order, storeName, onClose, onStatusChange, onPaymentChange
         {/* payment */}
         <div className="sd-box sd-paybox">
           <h3 className="sd-box-title">Payment</h3>
-          <p className="sd-subnote">Payment is currently handled directly between the seller and customer. Collect the payment before delivery.</p>
-          <div className="sd-paybox-row">
-            <div>
-              <p className="sd-paybox-amount">{formatMoney(order.subtotal, order.currency)}</p>
-              {cancelled && <p className="sd-person-meta">Order cancelled, nothing to collect</p>}
-            </div>
-            <PayBadge order={order} />
-          </div>
-          {!cancelled && (
-            <button
-              type="button"
-              className={paid ? "sd-ghost" : "sd-primary sd-paybtn"}
-              disabled={payBusy}
-              onClick={togglePayment}
-            >
-              {payBusy ? "Saving…" : paid ? "Mark as not paid" : "Payment received"}
-            </button>
+
+          {isOnline && !cancelled && (
+            <>
+              <p className="sd-subnote">
+                The customer paid online through Razorpay. You do not need to collect any payment.
+              </p>
+
+              <div className="sd-break">
+                <div className="sd-break-row">
+                  <span>Customer paid</span>
+                  <b>{fm(st.customerPaid)}</b>
+                </div>
+                <div className="sd-break-row sd-break-minus">
+                  <span>Razorpay fee ({rates.gatewayPercent}%)</span>
+                  <b>− {fm(st.gatewayFee)}</b>
+                </div>
+                <div className="sd-break-row sd-break-minus">
+                  <span>GST ({rates.gstPercent}% on Razorpay fee)</span>
+                  <b>− {fm(st.gstOnFee)}</b>
+                </div>
+                <div className="sd-break-row sd-break-minus">
+                  <span>Platform commission (per order)</span>
+                  <b>− {fm(st.platformFee)}</b>
+                </div>
+                <div className="sd-break-row sd-break-total">
+                  <span>You will receive</span>
+                  <b>{fm(st.sellerNet)}</b>
+                </div>
+              </div>
+
+              {payoutText(st, rates.payoutDays) && (
+                <p className={`sd-payout sd-payout-${st.payoutState}`}>{payoutText(st, rates.payoutDays)}</p>
+              )}
+            </>
           )}
-          {!cancelled && (
-            <p className="sd-subnote">
-              Delivery is currently arranged by the seller. Integrated delivery and online payment features are
-              coming soon.
-            </p>
+
+          {isOnline && cancelled && (
+            <div className="sd-paybox-row">
+              <div>
+                <p className="sd-paybox-amount">{fm(order.subtotal)}</p>
+                <p className="sd-person-meta">
+                  {order.payment?.status === "refunded"
+                    ? "Order cancelled. The payment was refunded to the customer."
+                    : order.payment?.status === "refund_pending"
+                    ? "Order cancelled. The refund to the customer is being processed."
+                    : "Order cancelled, nothing to receive."}
+                </p>
+              </div>
+              <PayBadge order={order} />
+            </div>
+          )}
+
+          {/* purane orders (jo online payment se pehle aaye the) */}
+          {!isOnline && (
+            <>
+              <p className="sd-subnote">
+                This order was placed before online payments. Payment is handled directly between you and the
+                customer.
+              </p>
+              <div className="sd-paybox-row">
+                <div>
+                  <p className="sd-paybox-amount">{fm(order.subtotal)}</p>
+                  {cancelled && <p className="sd-person-meta">Order cancelled, nothing to collect</p>}
+                </div>
+                <PayBadge order={order} />
+              </div>
+              {!cancelled && (
+                <button
+                  type="button"
+                  className={paid ? "sd-ghost" : "sd-primary sd-paybtn"}
+                  disabled={payBusy}
+                  onClick={togglePayment}
+                >
+                  {payBusy ? "Saving…" : paid ? "Mark as not paid" : "Payment received"}
+                </button>
+              )}
+            </>
           )}
         </div>
 
@@ -893,6 +966,7 @@ export default function SellerDashboard() {
     }
   }
 
+  // Sirf purane (pre-online-payment) orders ke liye
   async function changePayment(orderId, paymentStatus) {
     try {
       const res = await fetch(API, {
@@ -949,8 +1023,8 @@ export default function SellerDashboard() {
   async function quickAdvance(order) {
     const next = NEXT_ACTION[order.status];
     if (!next) return;
-    // delivered se pehle modal (payment check) dikhao
-    if (next.to === "delivered") return openOrder(order);
+    // Purane (non-online) orders me delivered se pehle modal (payment check) dikhao
+    if (next.to === "delivered" && order.payment?.method !== "razorpay") return openOrder(order);
     if (rowBusy) return;
     setRowBusy(order._id);
     const result = await changeStatus(order._id, next.to);
@@ -972,6 +1046,8 @@ export default function SellerDashboard() {
   const stats = data?.stats || {};
   const counts = data?.statusCounts || {};
   const attn = data?.attention || {};
+  const earn = data?.earnings || {};
+  const rates = data?.feeRates || { gatewayPercent: 2, gstPercent: 18, platformFee: 20, payoutDays: 7 };
   const notifications = data?.notifications || [];
   const lowStockList = data?.lowStockList || [];
   const storeName = seller.storeName || "";
@@ -980,6 +1056,7 @@ export default function SellerDashboard() {
   const rangeLabel = RANGES.find((r) => r.value === range)?.label || "";
   const inRange = range === "all" ? "" : ` (${rangeLabel.toLowerCase()})`;
   const filtering = Boolean(filter.status || filter.q);
+  const money = (v) => formatMoney(v || 0, stats.currency || "INR");
 
   const attentionItems = [
     {
@@ -1073,17 +1150,18 @@ export default function SellerDashboard() {
         </label>
       </header>
 
-      {/* ================= DELIVERY NOTICE ================= */}
-      <section className="sd-notice" aria-label="Order and delivery process">
+      {/* ================= PAYMENT & PAYOUT NOTICE ================= */}
+      <section className="sd-notice" aria-label="Payments and payouts">
         <span className="sd-notice-icon">
           <Icon name="shield" size={20} />
         </span>
         <div className="sd-notice-body">
-          <h2 className="sd-notice-title">Important: Order &amp; Delivery Process</h2>
+          <h2 className="sd-notice-title">How payments &amp; payouts work</h2>
           <p>
-            Currently, delivery is handled directly by the seller. LinkStorX is working on integrated delivery and
-            online payment features. Until these features are available, please contact the customer directly to
-            confirm the order, delivery address, payment method and delivery details before processing the order.
+            Customers pay online through Razorpay, so you don&apos;t need to collect any money. From every order we
+            deduct the Razorpay fee ({rates.gatewayPercent}%), {rates.gstPercent}% GST on that fee and a platform
+            commission of {formatMoney(rates.platformFee, "INR")} per order. The remaining amount is paid to you within{" "}
+            {rates.payoutDays} days after the order is delivered. Delivery is still arranged by you.
           </p>
         </div>
       </section>
@@ -1110,14 +1188,18 @@ export default function SellerDashboard() {
             <div className="sd-tip-body">
               <h2 className="sd-tip-title">How to manage an order</h2>
               <ol className="sd-tip-steps">
-                <li>A new order arrives as <b>Pending</b>.</li>
                 <li>
-                  Contact the customer by Call or WhatsApp. Confirm order, address, payment and delivery, then tap{" "}
+                  A new order appears as <b>Pending</b> after the customer has paid online.
+                </li>
+                <li>
+                  Contact the customer by Call or WhatsApp, confirm the address and delivery details, then tap{" "}
                   <b>Confirm</b>.
                 </li>
-                <li>Collect the payment from the customer first, then tap <b>Payment received</b>.</li>
                 <li>Pack the product, arrange delivery yourself, then tap <b>Shipped</b>.</li>
-                <li>Deliver the parcel, then tap <b>Delivered</b>. The order is complete.</li>
+                <li>
+                  Once the customer receives it, tap <b>Delivered</b>. Your earnings for that order become eligible
+                  for payout.
+                </li>
               </ol>
             </div>
           </section>
@@ -1141,13 +1223,8 @@ export default function SellerDashboard() {
               </span>
               <div className="sd-kpi-body">
                 <p className="sd-kpi-label">Total Sales</p>
-                <p className="sd-kpi-value">{formatMoney(stats.totalSales || 0, stats.currency || "INR")}</p>
+                <p className="sd-kpi-value">{money(stats.totalSales)}</p>
                 <p className="sd-kpi-note">From delivered orders{inRange}</p>
-                {(stats.toCollect || 0) > 0 && (
-                  <p className="sd-kpi-sub">
-                    {formatMoney(stats.toCollect, stats.currency || "INR")} yet to collect
-                  </p>
-                )}
               </div>
             </div>
 
@@ -1170,6 +1247,59 @@ export default function SellerDashboard() {
                 <p className="sd-kpi-label">Total Customers</p>
                 <p className="sd-kpi-value">{stats.totalCustomers || 0}</p>
                 <p className="sd-kpi-note">Customers who placed orders{inRange}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* ================= EARNINGS ================= */}
+          <section className="sd-card sd-card-pad" aria-labelledby="sd-h-earn">
+            <div className="sd-card-head">
+              <div>
+                <h2 id="sd-h-earn" className="sd-card-title">
+                  Your Earnings
+                </h2>
+                <p className="sd-card-sub">Online orders after Razorpay fee, GST and platform commission (all time)</p>
+              </div>
+            </div>
+
+            <div className="sd-earn-grid">
+              <div className="sd-earn sd-earn-eligible">
+                <span className="sd-earn-label">Eligible for payout</span>
+                <b className="sd-earn-value">{money(earn.eligible)}</b>
+                <span className="sd-earn-note">Delivered orders. Paid to you within {rates.payoutDays} days of delivery.</span>
+              </div>
+              <div className="sd-earn sd-earn-upcoming">
+                <span className="sd-earn-label">Eligible after delivery</span>
+                <b className="sd-earn-value">{money(earn.upcoming)}</b>
+                <span className="sd-earn-note">Paid orders that are not delivered yet.</span>
+              </div>
+              <div className="sd-earn sd-earn-paid">
+                <span className="sd-earn-label">Paid to you</span>
+                <b className="sd-earn-value">{money(earn.paidOut)}</b>
+                <span className="sd-earn-note">Already transferred to you.</span>
+              </div>
+            </div>
+
+            <div className="sd-break sd-break-card">
+              <div className="sd-break-row">
+                <span>Customers paid (active orders)</span>
+                <b>{money(earn.gross)}</b>
+              </div>
+              <div className="sd-break-row sd-break-minus">
+                <span>Razorpay fee ({rates.gatewayPercent}%)</span>
+                <b>− {money(earn.gatewayFee)}</b>
+              </div>
+              <div className="sd-break-row sd-break-minus">
+                <span>GST ({rates.gstPercent}% on Razorpay fee)</span>
+                <b>− {money(earn.gstOnFee)}</b>
+              </div>
+              <div className="sd-break-row sd-break-minus">
+                <span>Platform commission ({formatMoney(rates.platformFee, "INR")} per order)</span>
+                <b>− {money(earn.platformFee)}</b>
+              </div>
+              <div className="sd-break-row sd-break-total">
+                <span>Your total share</span>
+                <b>{money(earn.net)}</b>
               </div>
             </div>
           </section>
@@ -1214,7 +1344,7 @@ export default function SellerDashboard() {
                 <h2 id="sd-h-orders" className="sd-card-title">
                   Orders
                 </h2>
-                <p className="sd-card-sub">Latest orders from your customers</p>
+                <p className="sd-card-sub">Latest paid orders from your customers</p>
               </div>
 
               <label className="sd-search">
@@ -1290,7 +1420,7 @@ export default function SellerDashboard() {
                 <Empty
                   icon="box"
                   title="No orders yet"
-                  text="Your customer orders will appear here once someone places an order."
+                  text="Your customer orders will appear here once someone places and pays for an order."
                 />
               )
             ) : (
@@ -1563,6 +1693,7 @@ export default function SellerDashboard() {
         <OrderModal
           order={active}
           storeName={storeName}
+          rates={rates}
           onClose={() => setActive(null)}
           onStatusChange={changeStatus}
           onPaymentChange={changePayment}

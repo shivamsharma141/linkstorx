@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/app/lib/auth/auth";
+import { verifyWebhookSignature } from "@/app/lib/razorpay/razorpay";
 import {
   OrderError,
   placeOrder,
@@ -8,6 +9,8 @@ import {
   listOrdersForUser,
   updateOrderStatus,
   cancelOrderByBuyer,
+  verifyPayment,
+  handleRazorpayEvent,
 } from "@/app/businessLogic/orderLogic";
 
 const ok = (body, status = 200) => NextResponse.json({ success: true, ...body }, { status });
@@ -30,7 +33,7 @@ async function currentUserOrNull() {
   }
 }
 
-/* POST /api/orders  -> customer places an order */
+/* POST /api/orders  -> order banata hai (payment "initiated") + Razorpay order deta hai */
 export async function createOrderController(request) {
   try {
     let body;
@@ -41,7 +44,7 @@ export async function createOrderController(request) {
     }
 
     const user = await currentUserOrNull(); // optional: links the order to the buyer if logged in
-    const order = await placeOrder({
+    const { order, checkout } = await placeOrder({
       seller: body.seller,
       items: body.items,
       customer: body.customer,
@@ -53,12 +56,68 @@ export async function createOrderController(request) {
       {
         orderId: order.orderNumber,
         order,
-        message: `Order confirmed! @${order.sellerUsername} will contact you shortly.`,
+        checkout, // { keyId, razorpayOrderId, amountPaise, currency } -> browser Razorpay window ke liye
+        message: "Order created. Complete the payment to confirm it.",
       },
       201
     );
   } catch (err) {
     return handleError(err, "create order error");
+  }
+}
+
+/* POST /api/payments/verify -> Razorpay window ke baad browser yahan signature bhejta hai */
+export async function verifyPaymentController(request) {
+  try {
+    const body = await request.json().catch(() => ({}));
+
+    const order = await verifyPayment({
+      orderNumber: body.orderNumber,
+      razorpayOrderId: body.razorpay_order_id,
+      razorpayPaymentId: body.razorpay_payment_id,
+      signature: body.razorpay_signature,
+    });
+
+    return ok({
+      orderId: order.orderNumber,
+      order,
+      message: `Payment received! @${order.sellerUsername} will contact you shortly.`,
+    });
+  } catch (err) {
+    return handleError(err, "verify payment error");
+  }
+}
+
+/* POST /api/payments/webhook -> Razorpay server-to-server (backup agar browser band ho jaye) */
+export async function razorpayWebhookController(request) {
+  // Signature raw body par banta hai, isliye pehle text() lo
+  const rawBody = await request.text();
+  const signature = request.headers.get("x-razorpay-signature") || "";
+
+  let valid = false;
+  try {
+    valid = verifyWebhookSignature(rawBody, signature, "RAZORPAY_STORE_WEBHOOK_SECRET");
+  } catch (err) {
+    console.error("store webhook config error:", err.message);
+    return fail("Webhook is not configured.", 500);
+  }
+  if (!valid) return fail("Invalid signature.", 400);
+
+  let event;
+  try {
+    event = JSON.parse(rawBody);
+  } catch {
+    return fail("Invalid payload.", 400);
+  }
+
+  try {
+    await handleRazorpayEvent(event);
+    return ok({});
+  } catch (err) {
+    // 4xx = hamari taraf se final jawab (retry bekaar), baaki par Razorpay dobara bhejega
+    if (err instanceof OrderError && err.status < 500) return ok({ ignored: true });
+    console.error("store webhook error:", err);
+    return fail("Webhook processing failed.", 500);
   }
 }
 
@@ -128,7 +187,9 @@ export async function cancelOrderController(request, orderId) {
 
     return ok({
       order,
-      message: `Order cancelled. @${order.sellerUsername} has been notified.`,
+      message: `Order cancelled. @${order.sellerUsername} has been notified.${
+        order.payment?.status === "refunded" ? " Your payment has been refunded." : ""
+      }`,
     });
   } catch (err) {
     return handleError(err, "cancel order error");

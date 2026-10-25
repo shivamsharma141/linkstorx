@@ -1895,3 +1895,96 @@
     transition: none !important;
   }
 }
+
+
+
+/* =========================================================
+   2) APPEND TO: app/seller/dashboard/sellerdashboard.css
+   ========================================================= */
+.sd-break {
+  display: grid;
+  margin: 12px 0;
+}
+
+.sd-break-card {
+  margin-top: 18px;
+}
+
+.sd-break-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px dashed rgba(128, 128, 128, 0.3);
+  font-size: 14px;
+}
+
+.sd-break-minus b {
+  color: #b42318;
+}
+
+.sd-break-total {
+  border-bottom: 0;
+  padding-top: 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sd-break-total b {
+  color: #067647;
+}
+
+.sd-payout {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  background: rgba(128, 128, 128, 0.12);
+}
+
+.sd-payout-eligible {
+  background: rgba(6, 118, 71, 0.12);
+  color: #067647;
+}
+
+.sd-payout-paid_out {
+  background: rgba(0, 102, 255, 0.1);
+}
+
+.sd-earn-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sd-earn {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.sd-earn-label {
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.sd-earn-value {
+  font-size: 22px;
+}
+
+.sd-earn-note {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.sd-earn-eligible .sd-earn-value {
+  color: #067647;
+}
+
+@media (max-width: 720px) {
+  .sd-earn-grid {
+    grid-template-columns: 1fr;
+  }
+}

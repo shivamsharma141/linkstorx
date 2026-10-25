@@ -11,7 +11,18 @@ import {
   listOrders,
   setOrderStatus,
   cancelOrderByBuyerAtomic,
+  findOrderByRazorpayId,
+  patchOrder,
+  markOrderPaid,
+  expireUnpaidOrders,
 } from "@/app/databaseQueries/orderQueries";
+import {
+  createRazorpayOrder,
+  getRazorpayKeyId,
+  verifyPaymentSignature,
+  refundRazorpayPayment,
+} from "@/app/lib/razorpay/razorpay";
+import { FEE_CONFIG, toPaise, calcSettlement, payoutDueDate } from "@/app/lib/razorpay/settlement";
 
 export class OrderError extends Error {
   constructor(message, status = 400, fields = null) {
@@ -28,6 +39,9 @@ const MAX_QTY = 99;
 const str = (v, max) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const round2 = (n) => Math.round(n * 100) / 100;
 const sameId = (a, b) => String(a) === String(b);
+
+// Seller ko wahi orders dikhte hain jinka payment aa chuka ho (ya purane orders)
+export const HIDDEN_FROM_SELLER = ["initiated", "failed"];
 
 /* ---------- validation ---------- */
 
@@ -89,6 +103,7 @@ function newOrderNumber() {
 
 export function serializeOrder(o) {
   const c = o.cancellation || {};
+  const p = o.payment || {};
   return {
     id: o.orderNumber,
     orderNumber: o.orderNumber,
@@ -103,13 +118,16 @@ export function serializeOrder(o) {
       currency: i.currency,
       quantity: i.quantity,
       lineTotal: i.lineTotal,
+      deliveryCharge: i.deliveryCharge || 0,
     })),
     customer: o.customer,
     note: o.note,
     subtotal: o.subtotal,
+    deliveryTotal: o.deliveryTotal || 0,
+    total: o.total > 0 ? o.total : o.subtotal, // purane orders me total nahi hota
     totalQty: o.totalQty,
     currency: o.currency,
-    payment: o.payment,
+    payment: { method: p.method, status: p.status, paidAt: p.paidAt || null },
     cancellation: {
       cancelledBy: c.cancelledBy || "",
       reason: c.reason || "",
@@ -119,13 +137,27 @@ export function serializeOrder(o) {
   };
 }
 
-/* ---------- place an order ---------- */
+/* ---------- place an order (online payment) ---------- */
 
 export async function placeOrder({ seller, items, customer, payment, buyerId = null }) {
+  // COD abhi available nahi
+  const method = String(payment?.method || payment || "").toLowerCase();
+  if (method === "cod" || method === "pay_to_seller") {
+    throw new OrderError("Cash on Delivery is coming soon. Please pay online.", 400);
+  }
+  if (method !== "razorpay") throw new OrderError("Please choose a payment method.", 400);
+
   const { customer: cleanCustomer, note } = validateCustomer(customer);
   const lines = normalizeItems(items);
 
-  // Prices and seller always come from the DB, never from the browser
+  // Purane unpaid orders ka stock wapas
+  try {
+    await expireUnpaidOrders(FEE_CONFIG.unpaidExpiryMinutes);
+  } catch (err) {
+    console.error("expire unpaid orders failed:", err);
+  }
+
+  // Prices, delivery charges and seller always come from the DB, never from the browser
   const products = await findProductsByIds(lines.map((l) => l.productId));
   const byId = new Map(products.map((p) => [String(p._id), p]));
 
@@ -159,6 +191,9 @@ export async function placeOrder({ seller, items, customer, payment, buyerId = n
       currency: p.currency || "INR",
       quantity: line.quantity,
       lineTotal: round2(Number(p.price) * line.quantity),
+      // Delivery: seller ne "paid" chuna ho to hi charge; ek product ka ek hi baar
+      deliveryCharge:
+        p.deliveryType === "paid" ? Math.max(0, Number(p.deliveryCharge) || 0) : 0,
       trackInventory: Boolean(p.trackInventory),
     });
   }
@@ -167,6 +202,20 @@ export async function placeOrder({ seller, items, customer, payment, buyerId = n
   if (claimed && claimed !== sellerDoc.username.toLowerCase()) {
     throw new OrderError("Cart does not match this seller.", 400);
   }
+
+  // Razorpay sirf INR mein
+  if (orderItems.some((i) => i.currency !== "INR")) {
+    throw new OrderError("Online payment is available for INR products only.", 400);
+  }
+
+  const subtotal = round2(orderItems.reduce((s, i) => s + i.lineTotal, 0));
+  const deliveryTotal = round2(orderItems.reduce((s, i) => s + i.deliveryCharge, 0));
+  const total = round2(subtotal + deliveryTotal); // customer yahi pay karega
+  const amountPaise = toPaise(total);
+  if (amountPaise < 100) throw new OrderError("Order amount is too low for online payment.", 400);
+
+  // Fees poore paid amount (items + delivery) par lagti hain
+  const fees = calcSettlement(amountPaise);
 
   const stock = await reserveStock(orderItems);
   if (!stock.ok) throw new OrderError("Sorry, an item just went out of stock.", 409);
@@ -178,26 +227,164 @@ export async function placeOrder({ seller, items, customer, payment, buyerId = n
     items: orderItems,
     customer: cleanCustomer,
     note,
-    subtotal: round2(orderItems.reduce((s, i) => s + i.lineTotal, 0)),
+    subtotal,
+    deliveryTotal,
+    total,
     totalQty: orderItems.reduce((s, i) => s + i.quantity, 0),
-    currency: orderItems[0].currency,
-    payment: { method: "pay_to_seller", status: "pending" }, // online payment not live yet
+    currency: "INR",
+    payment: { method: "razorpay", status: "initiated", amountPaise },
+    settlement: {
+      gatewayFeePaise: fees.gatewayFeePaise,
+      gstOnFeePaise: fees.gstOnFeePaise,
+      platformFeePaise: fees.platformFeePaise,
+      sellerNetPaise: fees.sellerNetPaise,
+    },
     status: "pending",
   };
 
+  let saved = null;
   try {
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        const saved = await createOrder({ ...data, orderNumber: newOrderNumber() });
-        return serializeOrder(saved);
+        saved = await createOrder({ ...data, orderNumber: newOrderNumber() });
+        break;
       } catch (err) {
         if (err?.code === 11000 && attempt < 3) continue; // order number clash, retry
         throw err;
       }
     }
+
+    const rp = await createRazorpayOrder({
+      amountPaise,
+      receipt: saved.orderNumber,
+      notes: { type: "store_order", orderNumber: saved.orderNumber, seller: sellerDoc.username },
+    });
+
+    const withRp = await patchOrder(saved.orderNumber, { "payment.razorpayOrderId": rp.id });
+
+    return {
+      order: serializeOrder(withRp),
+      checkout: {
+        keyId: getRazorpayKeyId(),
+        razorpayOrderId: rp.id,
+        amountPaise,
+        currency: "INR",
+      },
+    };
   } catch (err) {
-    await releaseStock(orderItems); // order failed, give stock back
+    // Kuch fail hua: order band karo aur stock wapas
+    if (saved) {
+      await patchOrder(saved.orderNumber, { status: "cancelled", "payment.status": "failed" }).catch(() => {});
+    }
+    await releaseStock(orderItems);
     throw err;
+  }
+}
+
+/* ---------- payment confirm (verify route + webhook dono yahi use karte hain) ---------- */
+
+async function refundLatePayment(order, paymentId) {
+  // Order expire/cancel ho chuka tha par customer ne pay kar diya -> paisa wapas
+  try {
+    const refund = await refundRazorpayPayment({
+      paymentId,
+      amountPaise: order.payment.amountPaise,
+      notes: { orderNumber: order.orderNumber, reason: "order_expired_before_payment" },
+    });
+    await patchOrder(order.orderNumber, {
+      "payment.status": "refunded",
+      "payment.razorpayPaymentId": String(paymentId),
+      "payment.refundId": refund.id,
+      "payment.refundedAt": new Date(),
+    });
+  } catch (err) {
+    console.error("late payment refund failed:", order.orderNumber, err);
+    await patchOrder(order.orderNumber, {
+      "payment.status": "refund_pending",
+      "payment.razorpayPaymentId": String(paymentId),
+    }).catch(() => {});
+  }
+}
+
+export async function confirmPayment({ razorpayOrderId, paymentId }) {
+  const order = await findOrderByRazorpayId(razorpayOrderId);
+  if (!order) throw new OrderError("Order not found.", 404);
+
+  if (order.payment.status === "paid") return serializeOrder(order); // already done
+
+  const paid = await markOrderPaid(order.orderNumber, paymentId);
+  if (paid) return serializeOrder(paid);
+
+  // Shayad doosre request ne abhi hi mark kar diya
+  const fresh = await findOrderByRazorpayId(razorpayOrderId);
+  if (fresh?.payment?.status === "paid") return serializeOrder(fresh);
+
+  await refundLatePayment(fresh || order, paymentId);
+  throw new OrderError(
+    "This order expired before the payment was confirmed. Your money will be refunded automatically.",
+    409
+  );
+}
+
+export async function verifyPayment({ orderNumber, razorpayOrderId, razorpayPaymentId, signature }) {
+  const rpOrder = str(razorpayOrderId, 100);
+  const rpPayment = str(razorpayPaymentId, 100);
+  const sig = str(signature, 200);
+  if (!rpOrder || !rpPayment || !sig) throw new OrderError("Invalid payment details.", 400);
+
+  const valid = verifyPaymentSignature({ orderId: rpOrder, paymentId: rpPayment, signature: sig });
+  if (!valid) throw new OrderError("Payment verification failed.", 400);
+
+  const order = await findOrderByRazorpayId(rpOrder);
+  if (!order || order.orderNumber !== String(orderNumber || "")) {
+    throw new OrderError("Order not found.", 404);
+  }
+
+  return confirmPayment({ razorpayOrderId: rpOrder, paymentId: rpPayment });
+}
+
+/* Razorpay webhook events */
+export async function handleRazorpayEvent(event) {
+  const type = event?.event;
+  if (!["payment.captured", "order.paid"].includes(type)) return { ignored: true };
+
+  const pay = event?.payload?.payment?.entity;
+  if (!pay?.id || !pay?.order_id) return { ignored: true };
+  if (pay.status && pay.status !== "captured") return { ignored: true };
+
+  // Hamare store order nahi hai (jaise subscription payment) -> ignore
+  const order = await findOrderByRazorpayId(pay.order_id);
+  if (!order) return { ignored: true };
+
+  if (Number(pay.amount) !== Number(order.payment.amountPaise)) {
+    console.error("Webhook amount mismatch:", order.orderNumber, pay.amount, order.payment.amountPaise);
+    return { ignored: true };
+  }
+
+  await confirmPayment({ razorpayOrderId: pay.order_id, paymentId: pay.id });
+  return { ok: true };
+}
+
+/* ---------- refund (cancel hone par) ---------- */
+
+export async function refundIfPaid(order) {
+  const p = order?.payment || {};
+  if (p.method !== "razorpay" || p.status !== "paid" || !p.razorpayPaymentId) return null;
+
+  try {
+    const refund = await refundRazorpayPayment({
+      paymentId: p.razorpayPaymentId,
+      amountPaise: p.amountPaise,
+      notes: { orderNumber: order.orderNumber, reason: "order_cancelled" },
+    });
+    return await patchOrder(order.orderNumber, {
+      "payment.status": "refunded",
+      "payment.refundId": refund.id,
+      "payment.refundedAt": new Date(),
+    });
+  } catch (err) {
+    console.error("refund failed:", order.orderNumber, err);
+    return await patchOrder(order.orderNumber, { "payment.status": "refund_pending" });
   }
 }
 
@@ -214,7 +401,10 @@ export async function getOrderForUser({ orderNumber, userId }) {
 }
 
 export async function listOrdersForUser({ userId, role = "seller", status = "", page = 1, limit = 20 }) {
-  const filter = role === "buyer" ? { buyerId: userId } : { sellerId: userId };
+  const filter =
+    role === "buyer"
+      ? { buyerId: userId }
+      : { sellerId: userId, "payment.status": { $nin: HIDDEN_FROM_SELLER } };
   if (ORDER_STATUSES.includes(status)) filter.status = status;
 
   const safeLimit = Math.min(50, Math.max(1, Number(limit) || 20));
@@ -242,16 +432,28 @@ export async function updateOrderStatus({ orderNumber, sellerId, status }) {
   }
   if (order.status === status) return serializeOrder(order);
 
-  const extra =
-    status === "cancelled"
-      ? { cancellation: { cancelledBy: "seller", reason: "", cancelledAt: new Date() } }
-      : {};
+  if (HIDDEN_FROM_SELLER.includes(order.payment?.status)) {
+    throw new OrderError("Payment for this order is not received yet.", 409);
+  }
+
+  let extra = {};
+  if (status === "cancelled") {
+    extra = { cancellation: { cancelledBy: "seller", reason: "", cancelledAt: new Date() } };
+  }
+  if (status === "delivered") {
+    const now = new Date();
+    extra = { "settlement.deliveredAt": now, "settlement.payoutDueBy": payoutDueDate(now) };
+  }
 
   const updated = await setOrderStatus(order.orderNumber, status, extra);
   // null => kisi aur ne (jaise buyer) usi waqt order cancel/deliver kar diya
   if (!updated) throw new OrderError("This order was just updated. Please refresh.", 409);
 
-  if (status === "cancelled") await releaseStock(order.items);
+  if (status === "cancelled") {
+    await releaseStock(order.items);
+    const refunded = await refundIfPaid(updated);
+    return serializeOrder(refunded || updated);
+  }
 
   return serializeOrder(updated);
 }
@@ -285,8 +487,9 @@ export async function cancelOrderByBuyer({ orderNumber, buyerId, reason = "" }) 
     throw new OrderError("This order can't be cancelled anymore. Please refresh the page.", 409);
   }
 
-  // DB mein cancel ho gaya -> ab stock wapas
+  // DB mein cancel ho gaya -> ab stock wapas + paid hai to refund
   await releaseStock(order.items);
+  const refunded = await refundIfPaid(updated);
 
-  return serializeOrder(updated);
+  return serializeOrder(refunded || updated);
 }

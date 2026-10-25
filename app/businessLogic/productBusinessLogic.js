@@ -720,13 +720,25 @@ export async function getPublicProduct(username, slug) {
 
    The frontend/localStorage price is NEVER authoritative.
    This re-fetches every item fresh from the database and
-   returns validated, priced line items plus a subtotal.
+   returns validated, priced line items plus a subtotal,
+   the delivery charges and the final total.
    Nothing here creates an order or touches payment.
+
+   Delivery rule: each product's delivery charge is applied
+   ONCE per product (not multiplied by quantity), and only
+   when the seller set that product to "paid" delivery.
 ========================================================= */
 
 export async function revalidateCartItems(items) {
   if (!Array.isArray(items) || items.length === 0) {
-    return { items: [], subtotal: 0, currency: "INR", hasIssues: false };
+    return {
+      items: [],
+      subtotal: 0,
+      deliveryTotal: 0,
+      total: 0,
+      currency: "INR",
+      hasIssues: false,
+    };
   }
 
   const productIds = items.map((item) => item.productId).filter(Boolean);
@@ -735,6 +747,7 @@ export async function revalidateCartItems(items) {
   const productMap = new Map(products.map((p) => [p._id.toString(), p]));
 
   let subtotal = 0;
+  let deliveryTotal = 0;
   let hasIssues = false;
   let currency = "INR";
 
@@ -780,6 +793,12 @@ export async function revalidateCartItems(items) {
     subtotal += lineSubtotal;
     currency = product.currency || currency;
 
+    const deliveryCharge =
+      product.deliveryType === "paid"
+        ? Math.max(0, Number(product.deliveryCharge) || 0)
+        : 0;
+    deliveryTotal += deliveryCharge;
+
     return {
       productId: product._id.toString(),
       name: product.name,
@@ -788,9 +807,20 @@ export async function revalidateCartItems(items) {
       currency: product.currency,
       quantity,
       subtotal: lineSubtotal,
+      deliveryType: product.deliveryType === "paid" ? "paid" : "free",
+      deliveryCharge,
       available: true,
     };
   });
 
-  return { items: validated, subtotal, currency, hasIssues };
+  const round2 = (n) => Math.round(n * 100) / 100;
+
+  return {
+    items: validated,
+    subtotal: round2(subtotal),
+    deliveryTotal: round2(deliveryTotal),
+    total: round2(subtotal + deliveryTotal),
+    currency,
+    hasIssues,
+  };
 }

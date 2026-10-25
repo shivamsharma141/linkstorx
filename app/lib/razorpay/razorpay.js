@@ -24,6 +24,11 @@ function getKeys() {
   return { keyId, keySecret };
 }
 
+function authHeader() {
+  const { keyId, keySecret } = getKeys();
+  return `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`;
+}
+
 function safeEqual(a, b) {
   const bufferA = Buffer.from(String(a));
   const bufferB = Buffer.from(String(b));
@@ -39,14 +44,9 @@ export function getRazorpayKeyId() {
 
 /* Amount hamesha server se aata hai — browser ka koi amount use nahi hota. */
 export async function createRazorpayOrder({ amountPaise, receipt, notes }) {
-  const { keyId, keySecret } = getKeys();
-
   const response = await fetch(`${RAZORPAY_API}/orders`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
-    },
+    headers: { "Content-Type": "application/json", Authorization: authHeader() },
     body: JSON.stringify({
       amount: amountPaise,
       currency: "INR",
@@ -79,15 +79,39 @@ export function verifyPaymentSignature({ orderId, paymentId, signature }) {
   return safeEqual(expected, signature);
 }
 
-/* Webhook: HMAC_SHA256(raw body) == x-razorpay-signature */
-export function verifyWebhookSignature(rawBody, signature) {
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+/*
+ * Webhook: HMAC_SHA256(raw body) == x-razorpay-signature
+ * secretEnvName se alag-alag webhooks (subscription / store orders) ke
+ * secret alag rakh sakte ho.
+ */
+export function verifyWebhookSignature(rawBody, signature, secretEnvName = "RAZORPAY_WEBHOOK_SECRET") {
+  const secret = process.env[secretEnvName];
 
   if (!secret) {
-    throw createAppError("Razorpay webhook secret is not configured.", 500);
+    throw createAppError(`${secretEnvName} is not configured.`, 500);
   }
 
   const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
 
   return safeEqual(expected, signature);
+}
+
+/* Refund: full ya partial. Payment ID Razorpay ki hoti hai (pay_xxx) */
+export async function refundRazorpayPayment({ paymentId, amountPaise, notes }) {
+  const response = await fetch(`${RAZORPAY_API}/payments/${paymentId}/refund`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: authHeader() },
+    body: JSON.stringify({ amount: amountPaise, speed: "normal", notes }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(15000),
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok || !data.id) {
+    console.error("Razorpay refund failed:", response.status, data);
+    throw createAppError("Refund could not be started.", 502);
+  }
+
+  return data;
 }

@@ -1,6 +1,7 @@
 /* =========================================================
    LinkStorX Navbar: floating frosted-glass pill.
-   Blue buttons same, layout liinks jaisa.
+   Logo = text "LinkStorX" (X thoda bada + blue gradient).
+   Mobile drawer compact so scroller na lage.
    ========================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800;900&display=swap');
@@ -24,7 +25,7 @@
   width: 100%;
   padding: 12px 16px 0;
   background: transparent;
-  pointer-events: none; /* pill ke bahar ka area click na roke */
+  pointer-events: none;
 }
 
 /* ---------- The glass pill ---------- */
@@ -53,22 +54,41 @@
   box-shadow: 0 12px 34px rgba(10, 15, 61, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
-/* ---------- Logo ---------- */
+/* ---------- Text Logo (LinkStorX) ---------- */
 
 .nav-logo {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  line-height: 0;
+  line-height: 1;
+  text-decoration: none;
 }
 
-.nav-image {
-  height: 46px;
-  width: auto;
-  display: block;
+.nav-logo-text {
+  font-family: 'Poppins', 'Segoe UI', system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  color: #0a0f3d;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-/* ---------- Desktop links (plain text, no box) ---------- */
+.nav-logo-x {
+  font-size: 32px;
+  font-weight: 900;
+  background: linear-gradient(120deg, #1a2fd6 0%, #2f6bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  margin-left: 2px;
+  line-height: 1;
+}
+
+/* ---------- Desktop links ---------- */
 
 .nav-links {
   display: flex;
@@ -349,7 +369,7 @@
   pointer-events: auto;
 }
 
-/* ---------- Mobile drawer (left se right khulta hai) ---------- */
+/* ---------- Mobile drawer ---------- */
 
 .drawer {
   position: fixed;
@@ -361,7 +381,7 @@
   z-index: 1002;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  overflow: hidden;
   font-family: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
   background: #ffffff;
   border-radius: 0 26px 26px 0;
@@ -380,14 +400,38 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 22px 18px;
+  padding: 20px 22px 16px;
+  flex-shrink: 0;
 }
 
 .drawer-logo {
-  height: 36px;
-  width: auto;
-  max-width: 60%;
-  object-fit: contain;
+  display: inline-flex;
+  align-items: baseline;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.drawer-logo-text {
+  font-family: 'Poppins', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  color: #0a0f3d;
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.drawer-logo-x {
+  font-size: 30px;
+  font-weight: 900;
+  background: linear-gradient(120deg, #1a2fd6 0%, #2f6bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  margin-left: 2px;
+  line-height: 1;
 }
 
 .drawer-close {
@@ -416,12 +460,14 @@
   transform: rotate(90deg);
 }
 
-/* Links: arrow right side, neeche divider line */
+/* Links list */
 .drawer-links {
   display: flex;
   flex-direction: column;
-  padding: 6px 22px 14px;
+  padding: 4px 22px 8px;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .drawer-link {
@@ -431,9 +477,9 @@
   gap: 12px;
   color: #1c2150;
   text-decoration: none;
-  font-size: 16px;
+  font-size: 15.5px;
   font-weight: 600;
-  padding: 18px 4px;
+  padding: 13px 4px;
   border-bottom: 1px solid rgba(10, 15, 61, 0.08);
   opacity: 0;
   transform: translateX(-18px);
@@ -446,8 +492,8 @@
 }
 
 .drawer-arrow {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   color: #8a90b0;
   transition: transform 0.25s ease, color 0.2s ease;
@@ -471,27 +517,30 @@
   color: #1a2fd6;
 }
 
+/* Footer (logged in: name, dashboard, logout / logged out: login) */
 .drawer-footer {
-  margin-top: auto;
-  padding: 14px 22px 24px;
+  flex-shrink: 0;
+  padding: 10px 22px 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
+  border-top: 1px solid rgba(10, 15, 61, 0.06);
+  background: #ffffff;
 }
 
 .drawer-user {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
-  padding: 4px 2px 6px;
+  padding: 4px 2px 4px;
 }
 
 .drawer-user .profile-avatar {
-  width: 44px;
-  height: 44px;
-  font-size: 18px;
+  width: 38px;
+  height: 38px;
+  font-size: 15px;
   box-shadow: 0 4px 12px rgba(26, 47, 214, 0.28);
 }
 
@@ -500,19 +549,28 @@
   flex: 1;
 }
 
+.drawer-user-text .profile-user-name {
+  font-size: 14px;
+}
+
+.drawer-user-text .profile-user-email {
+  font-size: 12px;
+  margin-top: 1px;
+}
+
 .drawer-login {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   width: 100%;
-  padding: 13px 16px;
+  padding: 11px 16px;
   border-radius: 999px;
   background: linear-gradient(120deg, #1a2fd6 0%, #2f6bff 100%);
   color: #ffffff;
   text-decoration: none;
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: 14px;
   box-shadow: 0 8px 18px rgba(26, 47, 214, 0.28);
 }
 
@@ -524,13 +582,13 @@
 
 .drawer-logout {
   width: 100%;
-  padding: 13px 16px;
+  padding: 11px 16px;
   border: none;
   border-radius: 999px;
   background: #fff1f1;
   color: #d92d2d;
   font-family: inherit;
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.2s ease;
@@ -542,9 +600,10 @@
 
 .drawer-footer > span {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(10, 15, 61, 0.45);
   text-align: center;
+  margin-top: 2px;
 }
 
 /* =========================================================
@@ -561,7 +620,6 @@
     display: flex;
   }
 
-  /* Navbar mein avatar hidden, drawer mein user info hai */
   .profile {
     display: none;
   }
@@ -580,7 +638,7 @@
   }
 }
 
-/* Phones */
+/* Phones — sab kuch compact, scroller na lage */
 @media (max-width: 640px) {
   .navbar {
     padding: 10px 12px 0;
@@ -591,8 +649,12 @@
     padding: 7px 7px 7px 14px;
   }
 
-  .nav-image {
-    height: 40px;
+  .nav-logo-text {
+    font-size: 22px;
+  }
+
+  .nav-logo-x {
+    font-size: 27px;
   }
 
   .nav-actions {
@@ -613,6 +675,72 @@
   .profile-dropdown {
     width: min(240px, calc(100vw - 20px));
   }
+
+  /* Drawer compact */
+  .drawer-header {
+    padding: 14px 18px 10px;
+  }
+
+  .drawer-logo-text {
+    font-size: 20px;
+  }
+
+  .drawer-logo-x {
+    font-size: 25px;
+  }
+
+  .drawer-close {
+    width: 38px;
+    height: 38px;
+  }
+
+  .drawer-links {
+    padding: 2px 18px 4px;
+  }
+
+  .drawer-link {
+    padding: 11px 4px;
+    font-size: 14.5px;
+  }
+
+  .drawer-arrow {
+    width: 17px;
+    height: 17px;
+  }
+
+  .drawer-footer {
+    padding: 8px 18px 14px;
+    gap: 7px;
+  }
+
+  .drawer-user {
+    padding: 2px 2px 2px;
+    gap: 9px;
+  }
+
+  .drawer-user .profile-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .drawer-user-text .profile-user-name {
+    font-size: 13.5px;
+  }
+
+  .drawer-user-text .profile-user-email {
+    font-size: 11.5px;
+  }
+
+  .drawer-login,
+  .drawer-logout {
+    padding: 10px 14px;
+    font-size: 13.5px;
+  }
+
+  .drawer-footer > span {
+    font-size: 10.5px;
+  }
 }
 
 /* Very small phones */
@@ -626,8 +754,12 @@
     gap: 6px;
   }
 
-  .nav-image {
-    height: 34px;
+  .nav-logo-text {
+    font-size: 20px;
+  }
+
+  .nav-logo-x {
+    font-size: 24px;
   }
 
   .login-btn {
@@ -661,6 +793,67 @@
   .nav-actions {
     gap: 5px;
   }
+
+  /* Drawer extra compact */
+  .drawer-header {
+    padding: 12px 14px 8px;
+  }
+
+  .drawer-logo-text {
+    font-size: 18px;
+  }
+
+  .drawer-logo-x {
+    font-size: 22px;
+  }
+
+  .drawer-close {
+    width: 34px;
+    height: 34px;
+  }
+
+  .drawer-links {
+    padding: 2px 14px 2px;
+  }
+
+  .drawer-link {
+    padding: 10px 2px;
+    font-size: 13.5px;
+  }
+
+  .drawer-arrow {
+    width: 16px;
+    height: 16px;
+  }
+
+  .drawer-footer {
+    padding: 8px 14px 12px;
+    gap: 6px;
+  }
+
+  .drawer-user .profile-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+  }
+
+  .drawer-user-text .profile-user-name {
+    font-size: 13px;
+  }
+
+  .drawer-user-text .profile-user-email {
+    font-size: 11px;
+  }
+
+  .drawer-login,
+  .drawer-logout {
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+
+  .drawer-footer > span {
+    font-size: 10px;
+  }
 }
 
 /* Ultra-narrow (~250px tak) */
@@ -669,8 +862,12 @@
     padding: 5px 5px 5px 10px;
   }
 
-  .nav-image {
-    height: 28px;
+  .nav-logo-text {
+    font-size: 17px;
+  }
+
+  .nav-logo-x {
+    font-size: 21px;
   }
 
   .login-btn {
@@ -689,25 +886,68 @@
   }
 
   .drawer-header {
-    padding: 14px 14px 12px;
+    padding: 10px 12px 6px;
+  }
+
+  .drawer-logo-text {
+    font-size: 16px;
+  }
+
+  .drawer-logo-x {
+    font-size: 20px;
   }
 
   .drawer-close {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .drawer-close svg {
+    width: 14px;
+    height: 14px;
   }
 
   .drawer-links {
-    padding: 4px 14px 10px;
+    padding: 2px 12px 2px;
   }
 
   .drawer-link {
-    padding: 14px 2px;
-    font-size: 15px;
+    padding: 9px 2px;
+    font-size: 13px;
+  }
+
+  .drawer-arrow {
+    width: 15px;
+    height: 15px;
   }
 
   .drawer-footer {
-    padding: 12px 14px 18px;
+    padding: 8px 12px 10px;
+    gap: 5px;
+  }
+
+  .drawer-user .profile-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .drawer-user-text .profile-user-name {
+    font-size: 12.5px;
+  }
+
+  .drawer-user-text .profile-user-email {
+    font-size: 10.5px;
+  }
+
+  .drawer-login,
+  .drawer-logout {
+    padding: 8px 10px;
+    font-size: 12.5px;
+  }
+
+  .drawer-footer > span {
+    font-size: 9px;
   }
 }
 

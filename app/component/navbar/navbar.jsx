@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -26,6 +25,15 @@ function ArrowIcon() {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+// Text logo: "LinkStor" navy + "X" thoda bada aur blue gradient
+function LogoText({ className = 'nav-logo-text', xClassName = 'nav-logo-x' }) {
+  return (
+    <span className={className}>
+      LinkStor<span className={xClassName}>X</span>
+    </span>
   );
 }
 
@@ -89,16 +97,9 @@ export default function Navbar({ user = null }) {
     <>
       <header className={`navbar${scrolled ? ' navbar-scrolled' : ''}`}>
         <div className="nav-inner">
-          {/* Logo */}
+          {/* Text Logo: LinkStorX (X bada + blue) */}
           <Link href="/" className="nav-logo" aria-label="LinkStorX home">
-            <Image
-              src="/linkstorexnavlogo.png"
-              alt="LinkStorX"
-              width={190}
-              height={58}
-              priority
-              className="nav-image"
-            />
+            <LogoText />
           </Link>
 
           {/* Desktop links */}
@@ -202,20 +203,21 @@ export default function Navbar({ user = null }) {
         aria-hidden="true"
       />
 
-      {/* Mobile drawer: left se right khulta hai */}
+      {/* Mobile drawer: left se right khulta hai — compact so scroller na lage */}
       <aside
         id="mobile-drawer"
         className={`drawer${menuOpen ? ' drawer-open' : ''}`}
         aria-hidden={!menuOpen}
       >
         <div className="drawer-header">
-          <Image
-            src="/linkstorexnavlogo.png"
-            alt="LinkStorX"
-            width={150}
-            height={46}
+          <Link
+            href="/"
             className="drawer-logo"
-          />
+            aria-label="LinkStorX home"
+            onClick={() => setMenuOpen(false)}
+          >
+            <LogoText className="drawer-logo-text" xClassName="drawer-logo-x" />
+          </Link>
           <button
             type="button"
             className="drawer-close"

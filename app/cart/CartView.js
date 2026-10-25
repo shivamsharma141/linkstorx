@@ -37,6 +37,53 @@ function validate(f) {
   return e;
 }
 
+/* ---------- Razorpay checkout window ---------- */
+function loadRazorpay() {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return reject(new Error("Browser only"));
+    if (window.Razorpay) return resolve(true);
+
+    const fail = () =>
+      reject(new Error("Could not load the payment window. Check your internet and try again."));
+
+    const existing = document.getElementById("rzp-checkout-js");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true));
+      existing.addEventListener("error", fail);
+      return;
+    }
+
+    const s = document.createElement("script");
+    s.id = "rzp-checkout-js";
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.async = true;
+    s.onload = () => resolve(true);
+    s.onerror = fail;
+    document.body.appendChild(s);
+  });
+}
+
+function openCheckout({ checkout, orderNumber, form, accent, storeName }) {
+  return new Promise((resolve, reject) => {
+    const rzp = new window.Razorpay({
+      key: checkout.keyId,
+      amount: checkout.amountPaise,
+      currency: checkout.currency,
+      order_id: checkout.razorpayOrderId,
+      name: storeName || "LinkStorx",
+      description: `Order #${orderNumber}`,
+      prefill: { name: form.name, email: form.email, contact: form.phone },
+      theme: { color: accent },
+      handler: (response) => resolve(response),
+      modal: {
+        confirm_close: true,
+        ondismiss: () => reject(new Error("Payment was not completed. You can try again.")),
+      },
+    });
+    rzp.open();
+  });
+}
+
 /* ---------- tiny inline icon set ---------- */
 const ICONS = {
   back: <path d="M15 18l-6-6 6-6" />,
@@ -102,9 +149,40 @@ function Icon({ name, size = 18 }) {
   );
 }
 
+/* Payment method picker: Online = selected, COD = coming soon (disabled) */
+function PaymentMethods() {
+  return (
+    <div className="ck-paymethods" role="radiogroup" aria-label="Payment method">
+      <label className="ck-paymethod ck-paymethod-active">
+        <input type="radio" name="ck-pm" checked readOnly />
+        <span className="ck-paymethod-icon">
+          <Icon name="card" size={18} />
+        </span>
+        <span className="ck-paymethod-text">
+          <b>Pay online</b>
+          <small>UPI, cards, netbanking &amp; wallets. Secured by Razorpay.</small>
+        </span>
+      </label>
+
+      <label className="ck-paymethod ck-paymethod-disabled" aria-disabled="true">
+        <input type="radio" name="ck-pm" disabled />
+        <span className="ck-paymethod-icon">
+          <Icon name="truck" size={18} />
+        </span>
+        <span className="ck-paymethod-text">
+          <b>Cash on Delivery</b>
+          <small>Pay when your order arrives.</small>
+        </span>
+        <em className="ck-soon">Coming soon</em>
+      </label>
+    </div>
+  );
+}
+
 export default function CartView() {
   const [items, setItems] = useState([]);
   const [unavailable, setUnavailable] = useState({});
+  const [quote, setQuote] = useState(null); // server se: { deliveryTotal, total, delivery: { productId: charge } }
   const [checking, setChecking] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [accent, setAccent] = useState("#3a2b20");
@@ -113,10 +191,13 @@ export default function CartView() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
-  const [agreed, setAgreed] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [orderError, setOrderError] = useState("");
   const [orderDone, setOrderDone] = useState(null);
+
+  // Order jo ban chuka hai par pay hona baaki hai (retry ke liye)
+  // { orderNumber, checkout, payment? }
+  const [pendingOrder, setPendingOrder] = useState(null);
 
   useEffect(() => {
     const cart = getCart();
@@ -140,6 +221,9 @@ export default function CartView() {
     }
     setLastStore(savedStore);
 
+    // Payment window pehle se load kar lo taaki click par turant khule
+    if (cart.length > 0) loadRazorpay().catch(() => {});
+
     setLoaded(true);
     return subscribeToCart((next) => {
       setItems(next);
@@ -147,13 +231,17 @@ export default function CartView() {
     });
   }, []);
 
-  // Availability is always re-checked against the backend
+  // Product ya quantity badle to dobara check hota hai
+  const cartKey = items.map((i) => `${i.productId}:${i.quantity}`).join("|");
+
+  // Availability + delivery charges hamesha backend se re-check hote hain
   useEffect(() => {
     if (!loaded) return;
 
     if (items.length === 0) {
       setChecking(false);
       setUnavailable({});
+      setQuote(null);
       return;
     }
 
@@ -171,10 +259,17 @@ export default function CartView() {
       .then((data) => {
         if (cancelled || !data.success) return;
         const map = {};
+        const delivery = {};
         data.items.forEach((i) => {
           if (!i.available) map[i.productId] = i.reason;
+          else delivery[i.productId] = i.deliveryCharge || 0;
         });
         setUnavailable(map);
+        setQuote({
+          deliveryTotal: data.deliveryTotal || 0,
+          total: data.total || 0,
+          delivery,
+        });
       })
       .catch(() => {})
       .finally(() => {
@@ -185,12 +280,15 @@ export default function CartView() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, items.length]);
+  }, [loaded, cartKey]);
 
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
   const currency = items[0]?.currency || "INR";
+  const deliveryTotal = quote?.deliveryTotal || 0;
+  const payable = Math.round((subtotal + deliveryTotal) * 100) / 100; // customer ko yahi pay karna hai
   const hasUnavailable = Object.keys(unavailable).length > 0;
+  const onlineOk = currency === "INR"; // Razorpay sirf INR
   const storeHref = items[0]?.publicUsername
     ? `/${items[0].publicUsername}/store`
     : lastStore || "/";
@@ -198,9 +296,16 @@ export default function CartView() {
   const sellerName = items[0]?.sellerName || sellerHandle || "the seller";
   const sellerImage = items[0]?.sellerImage || "";
 
+  // Cart badal gaya (amount badla) -> purana unpaid order ab sahi nahi, naya banega
+  useEffect(() => {
+    setPendingOrder((p) => (p && !p.payment ? null : p));
+  }, [payable]);
+
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
+    // Details badli -> purana unpaid order dobara banega
+    setPendingOrder((p) => (p && !p.payment ? null : p));
   }
 
   function handlePlaceOrder() {
@@ -215,42 +320,85 @@ export default function CartView() {
       return;
     }
 
-    setAgreed(false);
     setOrderError("");
     setShowConfirm(true);
   }
 
+  /*
+   * 1) Order banao (server amount khud nikalta hai, delivery ke saath) -> Razorpay order id milta hai
+   * 2) Razorpay window kholo, customer pay kare
+   * 3) Signature server par verify karo -> order "paid"
+   */
   async function handleConfirm() {
-    if (!agreed || placing) return;
+    if (placing || !onlineOk) return;
     setPlacing(true);
     setOrderError("");
 
     try {
-      // TODO: adjust endpoint/payload to match your backend
-      const res = await fetch("/api/orders", {
+      let session = pendingOrder;
+
+      if (!session) {
+        const res = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seller: items[0]?.publicUsername,
+            items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+            customer: form,
+            payment: "razorpay",
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false || !data.checkout) {
+          throw new Error(data.message || "We couldn't place your order");
+        }
+        session = { orderNumber: data.orderId, checkout: data.checkout };
+        setPendingOrder(session);
+      }
+
+      // Payment pehle ho chuki hai par verify fail hua tha -> sirf verify dobara
+      let paid = session.payment;
+      if (!paid) {
+        await loadRazorpay();
+        paid = await openCheckout({
+          checkout: session.checkout,
+          orderNumber: session.orderNumber,
+          form,
+          accent,
+          storeName: sellerName,
+        });
+        session = { ...session, payment: paid };
+        setPendingOrder(session);
+      }
+
+      const vr = await fetch("/api/payments/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          seller: items[0]?.publicUsername,
-          items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-          customer: form,
-          payment: "pay_to_seller", // online payment is not available yet
+          orderNumber: session.orderNumber,
+          razorpay_order_id: paid.razorpay_order_id,
+          razorpay_payment_id: paid.razorpay_payment_id,
+          razorpay_signature: paid.razorpay_signature,
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.success === false) {
-        throw new Error(data.message || "We couldn't place your order");
+      const vd = await vr.json().catch(() => ({}));
+      if (!vr.ok || vd.success === false) {
+        throw new Error(
+          vd.message ||
+            "We received your payment but couldn't confirm it yet. Please tap Confirm payment again."
+        );
       }
 
       const snapshot = {
-        total: subtotal,
+        total: session.checkout.amountPaise / 100, // server ka final amount (items + delivery)
         qty: totalQty,
         currency,
-        id: data.orderId,
+        id: session.orderNumber,
         phone: form.phone,
         storeHref,
       };
       items.forEach((i) => removeFromCart(i.productId));
+      setPendingOrder(null);
       setShowConfirm(false);
       setOrderDone(snapshot);
     } catch (err) {
@@ -274,9 +422,9 @@ export default function CartView() {
   /* ---------------- order placed ---------------- */
   if (orderDone) {
     const steps = [
-      { label: "Order received", done: true },
-      { label: "Seller contacts you", done: false },
-      { label: "Payment & delivery confirmed", done: false },
+      { label: "Payment received", done: true },
+      { label: "Seller confirms your order", done: false },
+      { label: "Order shipped", done: false },
       { label: "Order delivered", done: false },
     ];
 
@@ -287,9 +435,9 @@ export default function CartView() {
             <div className="ck-success-icon">
               <Icon name="check" size={32} />
             </div>
-            <h1 className="ck-title ck-title-sm">Order placed successfully!</h1>
+            <h1 className="ck-title ck-title-sm">Payment successful!</h1>
             <p className="ck-subtitle ck-subtitle-center">
-              Your order has been sent to the seller.
+              Your order has been placed and sent to the seller.
             </p>
 
             <div className="ck-success-meta">
@@ -304,7 +452,7 @@ export default function CartView() {
                 <b>{orderDone.qty}</b>
               </div>
               <div>
-                <span>Total</span>
+                <span>Paid</span>
                 <b>{formatMoney(orderDone.total, orderDone.currency)}</b>
               </div>
             </div>
@@ -322,8 +470,8 @@ export default function CartView() {
             </ol>
 
             <p className="ck-success-note">
-              The seller will contact you on <b>{orderDone.phone}</b> to
-              confirm your order.
+              The seller may contact you on <b>{orderDone.phone}</b> to confirm
+              delivery details.
             </p>
 
             <Link href={orderDone.storeHref} className="ls-btn ls-btn-primary ck-cta">
@@ -392,10 +540,10 @@ export default function CartView() {
     );
   };
 
-  const placeDisabled = checking || hasUnavailable;
-  const placeLabel = checking ? "Checking availability…" : "Place Order";
+  const placeDisabled = checking || hasUnavailable || !onlineOk || !quote;
+  const placeLabel = checking ? "Checking availability…" : "Proceed to Pay";
   const currentStep = showConfirm ? 3 : 2;
-  const stepList = ["Cart", "Delivery", "Review"];
+  const stepList = ["Cart", "Delivery", "Payment"];
 
   /* ---------------- main checkout ---------------- */
   return (
@@ -409,8 +557,7 @@ export default function CartView() {
           </Link>
           <h1 className="ck-title">Checkout</h1>
           <p className="ck-subtitle">
-            Review your order, add your delivery details and send it to the
-            seller.
+            Review your order, add your delivery details and pay securely online.
           </p>
 
           <ol className="ck-steps" aria-label="Checkout progress">
@@ -445,6 +592,12 @@ export default function CartView() {
           <div className="ck-alert" role="alert">
             Some items in your cart are no longer available. Remove them to
             continue.
+          </div>
+        )}
+
+        {!onlineOk && (
+          <div className="ck-alert" role="alert">
+            Online payment is currently available for INR products only.
           </div>
         )}
 
@@ -490,6 +643,14 @@ export default function CartView() {
                         <p className="ck-item-unit">
                           {formatMoney(item.price, item.currency)}
                         </p>
+
+                        {quote && !issue && (
+                          <p className="ck-item-unit">
+                            {quote.delivery[item.productId] > 0
+                              ? `+ ${formatMoney(quote.delivery[item.productId], item.currency)} delivery`
+                              : "Free delivery"}
+                          </p>
+                        )}
 
                         {issue && (
                           <p className="ck-item-issue">
@@ -615,42 +776,25 @@ export default function CartView() {
               </div>
             </section>
 
-            {/* PAYMENT & DELIVERY INFO */}
-            <section className="ck-card ck-info" aria-labelledby="ck-h-pay">
-              <div className="ck-info-head">
-                <span className="ck-info-icon">
-                  <Icon name="card" size={20} />
-                </span>
-                <div>
-                  <h2 id="ck-h-pay" className="ck-card-title">
-                    Payment &amp; Delivery
-                  </h2>
-                  <p className="ck-card-sub">
-                    <b>Online payment is coming soon.</b> For now, the seller
-                    will contact you after your order is placed to confirm
-                    payment and delivery details.
-                  </p>
-                </div>
+            {/* PAYMENT METHOD */}
+            <section className="ck-card" aria-labelledby="ck-h-pay">
+              <div className="ck-card-head ck-card-head-col">
+                <h2 id="ck-h-pay" className="ck-card-title">
+                  Payment Method
+                </h2>
+                <p className="ck-card-sub">
+                  After you tap <b>Proceed to Pay</b>, a secure Razorpay window
+                  opens. Your order is confirmed only after the payment is
+                  successful.
+                </p>
               </div>
 
-              <div className="ck-info-grid">
-                <div>
-                  <span className="ck-info-label">
-                    <Icon name="card" size={14} /> Payment
-                  </span>
-                  <p>Seller will confirm payment with you</p>
-                </div>
-                <div>
-                  <span className="ck-info-label">
-                    <Icon name="truck" size={14} /> Delivery
-                  </span>
-                  <p>Seller will confirm delivery charges and delivery time</p>
-                </div>
-              </div>
+              <PaymentMethods />
 
               <p className="ck-info-foot">
-                <Icon name="check" size={15} />
-                No payment is required on this page.
+                <Icon name="lock" size={15} />
+                Payments are processed securely by Razorpay. We never see your
+                card or UPI details.
               </p>
             </section>
           </div>
@@ -677,7 +821,7 @@ export default function CartView() {
                 </Link>
               </div>
               <p className="ck-seller-note">
-                The seller will contact you after your order is placed.
+                The seller will arrange delivery after your payment is confirmed.
               </p>
             </section>
 
@@ -693,15 +837,21 @@ export default function CartView() {
               </div>
               <div className="ck-row">
                 <span>Delivery</span>
-                <span className="ck-row-val">Seller will confirm</span>
+                <span className="ck-row-val">
+                  {!quote
+                    ? "Calculating…"
+                    : deliveryTotal > 0
+                    ? formatMoney(deliveryTotal, currency)
+                    : "Free"}
+                </span>
               </div>
               <div className="ck-row">
                 <span>Payment</span>
-                <span className="ck-row-val">Directly with seller</span>
+                <span className="ck-row-val">Online (Razorpay)</span>
               </div>
               <div className="ck-row ck-total">
-                <span>Total</span>
-                <span className="ck-total-amount">{formatMoney(subtotal, currency)}</span>
+                <span>Total to pay</span>
+                <span className="ck-total-amount">{formatMoney(payable, currency)}</span>
               </div>
 
               <div className="ck-cta-block">
@@ -715,19 +865,19 @@ export default function CartView() {
                 </button>
                 <p className="ck-cta-note">
                   <Icon name="lock" size={13} />
-                  No payment is required on this page.
+                  100% secure payment via Razorpay.
                 </p>
               </div>
 
               <ul className="ck-trust">
                 <li>
-                  <Icon name="check" size={14} /> Order details sent directly to the seller
+                  <Icon name="check" size={14} /> Pay with UPI, cards, netbanking or wallets
                 </li>
                 <li>
-                  <Icon name="check" size={14} /> Seller will contact you for confirmation
+                  <Icon name="check" size={14} /> Order is sent to the seller after payment
                 </li>
                 <li>
-                  <Icon name="check" size={14} /> No online payment required right now
+                  <Icon name="check" size={14} /> Automatic refund if the order is cancelled
                 </li>
               </ul>
             </section>
@@ -739,7 +889,7 @@ export default function CartView() {
       <div className="ck-mobilebar">
         <div className="ck-mobilebar-total">
           <span>Total</span>
-          <b>{formatMoney(subtotal, currency)}</b>
+          <b>{formatMoney(payable, currency)}</b>
         </div>
         <button
           type="button"
@@ -751,7 +901,7 @@ export default function CartView() {
         </button>
       </div>
 
-      {/* REVIEW & CONFIRM */}
+      {/* REVIEW & PAY */}
       {showConfirm && (
         <div
           className="ck-modal-backdrop"
@@ -765,17 +915,8 @@ export default function CartView() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id="ck-h-review" className="ck-modal-title">
-              Review &amp; confirm
+              Review &amp; pay
             </h2>
-
-            <div className="ck-modal-notice">
-              <Icon name="card" size={18} />
-              <p>
-                <b>Online payment isn&apos;t available yet.</b> The seller will
-                contact you to confirm payment, delivery charges and delivery
-                time.
-              </p>
-            </div>
 
             <dl className="ck-modal-summary">
               <div>
@@ -793,24 +934,14 @@ export default function CartView() {
                 </dd>
               </div>
               <div>
-                <dt>Total</dt>
+                <dt>Total to pay</dt>
                 <dd>
-                  <b>{formatMoney(subtotal, currency)}</b>
+                  <b>{formatMoney(payable, currency)}</b>
                 </dd>
               </div>
             </dl>
 
-            <label className="ck-modal-check">
-              <input
-                type="checkbox"
-                checked={agreed}
-                onChange={(e) => setAgreed(e.target.checked)}
-              />
-              <span>
-                I understand that online payment isn&apos;t available yet and
-                the seller will confirm payment and delivery with me.
-              </span>
-            </label>
+            <PaymentMethods />
 
             {orderError && (
               <p className="ck-error" role="alert">
@@ -831,9 +962,13 @@ export default function CartView() {
                 type="button"
                 className="ls-btn ls-btn-primary"
                 onClick={handleConfirm}
-                disabled={!agreed || placing}
+                disabled={placing || !onlineOk}
               >
-                {placing ? "Placing order…" : "Confirm Order"}
+                {placing
+                  ? "Processing…"
+                  : pendingOrder?.payment
+                  ? "Confirm payment"
+                  : `Pay ${formatMoney(payable, currency)}`}
               </button>
             </div>
           </div>
