@@ -8,6 +8,9 @@ import "./sellerdashboard.css";
 
 const API = "/api/seller/dashboard";
 
+// Ek baar me kitne orders / settlements load honge
+const PAGE_SIZE = 10;
+
 const ORDER_STATUSES = ["pending", "confirmed", "shipped", "delivered", "cancelled"];
 const STEPS = ["pending", "confirmed", "shipped", "delivered"];
 
@@ -176,6 +179,12 @@ const ICONS = {
       <path d="M12 11v4M12 8.5h.01" />
     </>
   ),
+  receipt: (
+    <>
+      <path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z" />
+      <path d="M9 7h6M9 11h6M9 15h3" />
+    </>
+  ),
 };
 
 function Icon({ name, size = 18, stroke = 2 }) {
@@ -250,6 +259,12 @@ function timeAgo(value) {
   return formatDate(value);
 }
 
+// Scroller ke bottom ke paas pahunche ya nahi
+function nearBottom(e) {
+  const el = e.currentTarget;
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+}
+
 // Order ke status ke hisaab se WhatsApp ka ready message
 function waMessage(order, storeName) {
   const store = storeName || "your seller";
@@ -312,6 +327,136 @@ function payoutText(s, days) {
     default:
       return "";
   }
+}
+
+/* ---------------- receipt helpers ---------------- */
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+// Ek order ka poora hisaab: customer ne kitna diya, kitna kata, aapko kitna mila.
+// Agar API ye fields deti hai (customerPaid, gatewayFee, gstOnFee, platformFee) to wahi use hote hain,
+// warna settlement amount (net) se wapas calculate kiya jata hai.
+function orderBreakdown(o, rates) {
+  const net = round2(o.amount);
+  const gp = (Number(rates.gatewayPercent) || 0) / 100;
+  const gstp = (Number(rates.gstPercent) || 0) / 100;
+
+  if (o.customerPaid != null && o.gatewayFee != null && o.gstOnFee != null) {
+    const platform = o.platformFee != null ? round2(o.platformFee) : round2(o.customerPaid - o.gatewayFee - o.gstOnFee - net);
+    return {
+      paid: round2(o.customerPaid),
+      fee: round2(o.gatewayFee),
+      gst: round2(o.gstOnFee),
+      platform,
+      net,
+    };
+  }
+
+  const platform = round2(o.platformFee != null ? o.platformFee : rates.platformFee);
+  const factor = 1 - gp * (1 + gstp) || 1;
+  const paid = round2((net + platform) / factor);
+  const fee = round2(paid * gp);
+  const gst = round2(paid - fee - platform - net); // rounding yahin adjust hoti hai
+  return { paid, fee, gst, platform, net };
+}
+
+// PDF me sirf simple ASCII chahiye, isliye "Rs." use karte hain
+function pdfMoney(v) {
+  return `Rs. ${(Number(v) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function receiptLines({ s, o, b, rates, storeName }) {
+  const W = 62;
+  const line = "-".repeat(W);
+  const row = (label, value) => {
+    const l = String(label);
+    const v = String(value);
+    return l + " ".repeat(Math.max(1, W - l.length - v.length)) + v;
+  };
+  const when = s.status === "Paid" && s.paidAt ? s.paidAt : s.createdAt;
+  const items = String(o.items || "-");
+  const isPaid = s.status === "Paid";
+
+  const lines = [
+    "LINKSTORX - PAYOUT RECEIPT",
+    line,
+    `Seller          : ${storeName || "-"}`,
+    `Order           : #${o.orderNumber}`,
+    `Items           : ${items.length > 44 ? `${items.slice(0, 41)}...` : items}`,
+    `Settlement date : ${formatDate(when)} ${formatTime(when)}`,
+    `Payout status   : ${isPaid ? "Paid" : s.status === "Failed" ? "Transfer failed" : "Processing"}`,
+  ];
+  if (isPaid) lines.push(`UTR             : ${s.utr || "-"}`);
+  lines.push(
+    `Sent to         : ${s.bank?.bankName || "Your bank"}${s.bank?.last4 ? ` ****${s.bank.last4}` : ""}`,
+    line,
+    row("Customer paid", pdfMoney(b.paid)),
+    row(`Razorpay fee (${rates.gatewayPercent}% of ${pdfMoney(b.paid)})`, `- ${pdfMoney(b.fee)}`),
+    row(`GST (${rates.gstPercent}% of fee ${pdfMoney(b.fee)})`, `- ${pdfMoney(b.gst)}`),
+    row("Platform commission (per order)", `- ${pdfMoney(b.platform)}`),
+    line,
+    row(isPaid ? "YOU RECEIVED" : "YOU WILL RECEIVE", pdfMoney(b.net)),
+    line,
+    `Total deducted  : ${pdfMoney(round2(b.fee + b.gst + b.platform))}`,
+    "",
+    "How it is calculated:",
+    `1. Razorpay fee = ${rates.gatewayPercent}% of the amount the customer paid.`,
+    `2. GST = ${rates.gstPercent}% of the Razorpay fee (not of the order).`,
+    "3. Platform commission is a fixed amount per order.",
+    "4. You receive: customer paid - fee - GST - commission.",
+    "",
+    `Generated on ${formatDate(new Date())} ${formatTime(new Date())}`
+  );
+  return lines;
+}
+
+// Chhota sa PDF banane wala (koi library nahi chahiye)
+function makePdf(lines) {
+  const esc = (t) =>
+    String(t)
+      .replace(/[^\x20-\x7E]/g, "?")
+      .replace(/\\/g, "\\\\")
+      .replace(/\(/g, "\\(")
+      .replace(/\)/g, "\\)");
+
+  let content = "BT\n/F1 11 Tf\n16 TL\n50 790 Td\n";
+  lines.forEach((l) => {
+    content += `(${esc(l)}) Tj T*\n`;
+  });
+  content += "ET";
+
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>",
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  ];
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [];
+  objs.forEach((obj, i) => {
+    offsets.push(pdf.length);
+    pdf += `${i + 1} 0 obj\n${obj}\nendobj\n`;
+  });
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  offsets.forEach((off) => {
+    pdf += `${String(off).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+
+  return new Blob([pdf], { type: "application/pdf" });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
 /* ---------------- small components ---------------- */
@@ -730,6 +875,220 @@ function OrderModal({ order, storeName, rates, onClose, onStatusChange, onPaymen
   );
 }
 
+/* ---------------- settlement receipt (modal + PDF download) ---------------- */
+function ReceiptModal({ s, o, rates, storeName, onClose, onDownload }) {
+  const b = orderBreakdown(o, rates);
+  const fm = (v) => formatMoney(v, "INR");
+  const isPaid = s.status === "Paid";
+  const when = isPaid && s.paidAt ? s.paidAt : s.createdAt;
+  const statusText = isPaid ? "Paid to you" : s.status === "Failed" ? "Transfer failed" : "Processing";
+  const statusCls = isPaid ? "sd-paybadge-paid" : "sd-paybadge-due";
+
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <div className="sd-modal-backdrop" onClick={onClose}>
+      <div
+        className="sd-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sd-receipt-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sd-modal-head">
+          <div>
+            <h2 id="sd-receipt-title" className="sd-modal-title">
+              Receipt · Order #{o.orderNumber}
+            </h2>
+            <p className="sd-modal-date">
+              {formatDate(when)} at {formatTime(when)}
+            </p>
+          </div>
+          <button type="button" className="sd-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+
+        {/* order + payout details */}
+        <div className="sd-box">
+          <h3 className="sd-box-title">Payout details</h3>
+          <dl className="sd-kv">
+            <dt>Order</dt>
+            <dd>#{o.orderNumber}</dd>
+            <dt>Items</dt>
+            <dd>{o.items || "-"}</dd>
+            <dt>Status</dt>
+            <dd>
+              <span className={`sd-paybadge ${statusCls}`}>{statusText}</span>
+            </dd>
+            {isPaid && (
+              <>
+                <dt>UTR</dt>
+                <dd style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>{s.utr || "-"}</dd>
+              </>
+            )}
+            <dt>Sent to</dt>
+            <dd>
+              {s.bank?.bankName || "Your bank"} {s.bank?.last4 ? `••••${s.bank.last4}` : ""}
+            </dd>
+          </dl>
+        </div>
+
+        {/* how the money is calculated */}
+        <div className="sd-box">
+          <h3 className="sd-box-title">How your money is calculated</h3>
+          <div className="sd-break" style={{ margin: 0 }}>
+            <div className="sd-break-row">
+              <span className="sd-break-label">
+                Customer paid
+                <em>Total amount the customer paid online</em>
+              </span>
+              <b>{fm(b.paid)}</b>
+            </div>
+            <div className="sd-break-row sd-break-minus">
+              <span className="sd-break-label">
+                Razorpay fee ({rates.gatewayPercent}%)
+                <em>
+                  {rates.gatewayPercent}% of {fm(b.paid)}
+                </em>
+              </span>
+              <b>− {fm(b.fee)}</b>
+            </div>
+            <div className="sd-break-row sd-break-minus">
+              <span className="sd-break-label">
+                GST ({rates.gstPercent}% on fee)
+                <em>
+                  {rates.gstPercent}% of the Razorpay fee ({fm(b.fee)}), not of the order
+                </em>
+              </span>
+              <b>− {fm(b.gst)}</b>
+            </div>
+            <div className="sd-break-row sd-break-minus">
+              <span className="sd-break-label">
+                Platform commission
+                <em>Fixed amount per order</em>
+              </span>
+              <b>− {fm(b.platform)}</b>
+            </div>
+            <div className="sd-break-row sd-break-total">
+              <span>{isPaid ? "You received" : "You will receive"}</span>
+              <b>{fm(b.net)}</b>
+            </div>
+          </div>
+          <p className="sd-subnote" style={{ marginTop: 10 }}>
+            Total deducted: {fm(round2(b.fee + b.gst + b.platform))}. You receive customer paid − Razorpay fee − GST −
+            platform commission.
+          </p>
+        </div>
+
+        <div className="sd-actionbox">
+          <button type="button" className="sd-bigbtn" onClick={() => onDownload({ s, o, b })}>
+            <Icon name="down" size={18} />
+            Download receipt (PDF)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- settlement card (expand / collapse) ---------------- */
+function SettlementCard({ s, onReceipt }) {
+  const [open, setOpen] = useState(false);
+  const fm = (v) => formatMoney(v, "INR");
+
+  const label = s.status === "Paid" ? "Paid to you" : s.status === "Failed" ? "Transfer failed" : "Processing";
+  const cls = s.status === "Paid" ? "sd-paybadge-paid" : "sd-paybadge-due";
+  const when = s.status === "Paid" && s.paidAt ? s.paidAt : s.createdAt;
+
+  return (
+    <li className={`sd-settle ${open ? "sd-settle-open" : ""}`}>
+      <button type="button" className="sd-settle-head" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span className="sd-settle-main">
+          <span className="sd-settle-amount">{fm(s.amount)}</span>
+          <span className="sd-person-meta">
+            {s.orderCount} {s.orderCount === 1 ? "order" : "orders"} · {s.productCount}{" "}
+            {s.productCount === 1 ? "product" : "products"}
+          </span>
+        </span>
+        <span className="sd-settle-side">
+          <span className={`sd-paybadge ${cls}`}>{label}</span>
+          <span className="sd-person-meta">
+            {formatDate(when)} · {formatTime(when)}
+          </span>
+        </span>
+        <Icon name="chevron" size={16} />
+      </button>
+
+      {open && (
+        <div className="sd-settle-body">
+          {s.status === "Pending" && (
+            <p className="sd-subnote">
+              LinkStorx is transferring this amount to your bank account. The UTR will appear here once the transfer is done.
+            </p>
+          )}
+          {s.status === "Failed" && (
+            <p className="sd-subnote">
+              This transfer did not go through. These orders are back in the payout queue and will be paid again.
+            </p>
+          )}
+
+          <dl className="sd-kv">
+            <dt>Amount</dt>
+            <dd>{fm(s.amount)}</dd>
+            {s.status === "Paid" && (
+              <>
+                <dt>UTR</dt>
+                <dd style={{ fontFamily: "ui-monospace, Menlo, Consolas, monospace" }}>{s.utr || "-"}</dd>
+                <dt>Paid on</dt>
+                <dd>
+                  {formatDate(s.paidAt)} · {formatTime(s.paidAt)}
+                </dd>
+              </>
+            )}
+            <dt>Sent to</dt>
+            <dd>
+              {s.bank.bankName || "Your bank"} {s.bank.last4 ? `••••${s.bank.last4}` : ""}
+            </dd>
+            <dt>Created</dt>
+            <dd>{formatDate(s.createdAt)}</dd>
+          </dl>
+
+          <h4 className="sd-box-title" style={{ marginTop: 14 }}>
+            Orders in this payout
+          </h4>
+          <ul className="sd-items sd-items-scroll sd-scroll">
+            {s.orders.map((o) => (
+              <li key={o.orderNumber} className="sd-item sd-item-col">
+                <div className="sd-item-row">
+                  <div className="sd-item-info">
+                    <p className="sd-item-name">#{o.orderNumber}</p>
+                    <p className="sd-item-meta">{o.items || "-"}</p>
+                  </div>
+                  <b className="sd-item-total">{fm(o.amount)}</b>
+                </div>
+                <button type="button" className="sd-view sd-view-receipt" onClick={() => onReceipt(s, o)}>
+                  <Icon name="receipt" size={15} />
+                  View receipt
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </li>
+  );
+}
+
 /* ---------------- loading skeleton ---------------- */
 function DashboardSkeleton() {
   return (
@@ -779,8 +1138,15 @@ export default function SellerDashboard() {
   const [custHasMore, setCustHasMore] = useState(false);
   const [custLoading, setCustLoading] = useState(false);
 
+  // settlements
+  const [settlements, setSettlements] = useState([]);
+  const [settleHasMore, setSettleHasMore] = useState(false);
+  const [settleLoading, setSettleLoading] = useState(false);
+  const [settleError, setSettleError] = useState(false);
+
   // ui
   const [active, setActive] = useState(null);
+  const [receipt, setReceipt] = useState(null);
   const [toast, setToast] = useState(null);
   const [showLowStock, setShowLowStock] = useState(false);
 
@@ -806,7 +1172,7 @@ export default function SellerDashboard() {
         setError("");
       }
       try {
-        const res = await fetch(`${API}?range=${range}`, { cache: "no-store" });
+        const res = await fetch(`${API}?range=${range}&limit=${PAGE_SIZE}`, { cache: "no-store" });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json.success) {
           throw new Error(json.message || "Could not load your dashboard");
@@ -815,6 +1181,9 @@ export default function SellerDashboard() {
         if (!silent) {
           setCustomers(json.customers || []);
           setCustHasMore(Boolean(json.customersHasMore));
+          setSettlements(json.settlements || []);
+          setSettleHasMore(Boolean(json.settlementsHasMore));
+          setSettleError(false);
         }
       } catch (err) {
         if (!silent) setError(err.message || "Something went wrong");
@@ -848,6 +1217,7 @@ export default function SellerDashboard() {
         const params = new URLSearchParams({
           section: "orders",
           skip: "0",
+          limit: String(PAGE_SIZE),
           status: filter.status,
           q: filter.q,
         });
@@ -857,6 +1227,7 @@ export default function SellerDashboard() {
         if (!res.ok || !json.success) throw new Error(json.message || "Could not load orders");
         setOrders(json.orders);
         setOrdersMeta({ hasMore: json.hasMore, total: json.total });
+        setMoreError(false);
       } catch (err) {
         if (id === reqId.current) setOrdersError(err.message || "Could not load orders");
       } finally {
@@ -873,6 +1244,7 @@ export default function SellerDashboard() {
       const params = new URLSearchParams({
         section: "orders",
         skip: String(orders.length),
+        limit: String(PAGE_SIZE),
         status: filter.status,
         q: filter.q,
       });
@@ -908,6 +1280,39 @@ export default function SellerDashboard() {
     } finally {
       setCustLoading(false);
     }
+  }
+
+  async function loadMoreSettlements() {
+    if (settleLoading) return;
+    setSettleLoading(true);
+    setSettleError(false);
+    try {
+      const res = await fetch(
+        `${API}?section=settlements&skip=${settlements.length}&limit=${PAGE_SIZE}`,
+        { cache: "no-store" }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error();
+      setSettlements((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        return [...prev, ...json.settlements.filter((x) => !seen.has(x.id))];
+      });
+      setSettleHasMore(Boolean(json.hasMore));
+    } catch {
+      setSettleError(true);
+      showToast("Couldn't load more settlements", "error");
+    } finally {
+      setSettleLoading(false);
+    }
+  }
+
+  /* ---------- scroll = auto load next 10 ---------- */
+  function onOrdersScroll(e) {
+    if (nearBottom(e) && ordersMeta.hasMore && !moreLoading && !moreError && !ordersLoading) loadMore();
+  }
+
+  function onSettleScroll(e) {
+    if (nearBottom(e) && settleHasMore && !settleLoading && !settleError) loadMoreSettlements();
   }
 
   /* ---------- in-page navigation helpers ---------- */
@@ -1041,6 +1446,21 @@ export default function SellerDashboard() {
     }
   }
 
+  /* ---------- settlement receipt ---------- */
+  function openReceipt(s, o) {
+    setReceipt({ s, o });
+  }
+
+  function downloadReceipt({ s, o, b }) {
+    try {
+      const blob = makePdf(receiptLines({ s, o, b, rates, storeName }));
+      downloadBlob(blob, `receipt-order-${o.orderNumber}.pdf`);
+      showToast("Receipt downloaded");
+    } catch {
+      showToast("Couldn't download the receipt. Please try again.", "error");
+    }
+  }
+
   /* ---------- derived ---------- */
   const seller = data?.seller || {};
   const stats = data?.stats || {};
@@ -1112,7 +1532,7 @@ export default function SellerDashboard() {
           </button>
         )}
         <button type="button" className="sd-view" onClick={() => openOrder(o)}>
-          View
+          View receipt
         </button>
         <ContactButtons
           phone={o.customer?.phone}
@@ -1152,9 +1572,6 @@ export default function SellerDashboard() {
 
       {/* ================= PAYMENT & PAYOUT NOTICE ================= */}
       <section className="sd-notice" aria-label="Payments and payouts">
-        <span className="sd-notice-icon">
-          <Icon name="shield" size={20} />
-        </span>
         <div className="sd-notice-body">
           <h2 className="sd-notice-title">How payments &amp; payouts work</h2>
           <p>
@@ -1182,9 +1599,6 @@ export default function SellerDashboard() {
         <>
           {/* ================= HOW IT WORKS (always visible) ================= */}
           <section className="sd-tip" aria-label="How to manage orders">
-            <span className="sd-tip-icon">
-              <Icon name="bulb" size={20} />
-            </span>
             <div className="sd-tip-body">
               <h2 className="sd-tip-title">How to manage an order</h2>
               <ol className="sd-tip-steps">
@@ -1302,6 +1716,50 @@ export default function SellerDashboard() {
                 <b>{money(earn.net)}</b>
               </div>
             </div>
+          </section>
+
+          {/* ================= SETTLEMENTS HISTORY ================= */}
+          <section className="sd-card sd-card-pad" aria-labelledby="sd-h-settle">
+            <div className="sd-card-head">
+              <div>
+                <h2 id="sd-h-settle" className="sd-card-title">
+                  Settlements History
+                </h2>
+                <p className="sd-card-sub">
+                  Every payout LinkStorx has made to you. Tap one to see the orders, UTR and receipts.
+                </p>
+              </div>
+            </div>
+
+            {settlements.length === 0 ? (
+              <Empty
+                small
+                icon="wallet"
+                title="No settlements yet"
+                text="Once your delivered orders are verified and paid out, they will show up here."
+              />
+            ) : (
+              <>
+                <ul className="sd-settle-list sd-scroll sd-settle-scroll" onScroll={onSettleScroll}>
+                  {settlements.map((s) => (
+                    <SettlementCard key={s.id} s={s} onReceipt={openReceipt} />
+                  ))}
+                  {settleLoading && (
+                    <li className="sd-scroll-note" aria-live="polite">
+                      Loading…
+                    </li>
+                  )}
+                </ul>
+                {settleHasMore && (
+                  <div className="sd-more">
+                    <button type="button" className="sd-more-btn" onClick={loadMoreSettlements} disabled={settleLoading}>
+                      {settleLoading ? "Loading…" : settleError ? "Try again" : "Show more"}
+                      {!settleLoading && <Icon name="down" size={16} />}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </section>
 
           {/* ================= STATUS SUMMARY ================= */}
@@ -1425,8 +1883,8 @@ export default function SellerDashboard() {
               )
             ) : (
               <div style={{ opacity: ordersLoading ? 0.55 : 1, transition: "opacity .15s" }}>
-                {/* desktop / tablet table */}
-                <div className="sd-table-wrap">
+                {/* desktop / tablet table (scrolls inside, loads next 10 at the bottom) */}
+                <div className="sd-table-wrap sd-scroll" onScroll={onOrdersScroll}>
                   <table className="sd-table">
                     <thead>
                       <tr>
@@ -1486,8 +1944,8 @@ export default function SellerDashboard() {
                   </table>
                 </div>
 
-                {/* mobile cards */}
-                <ul className="sd-order-cards">
+                {/* mobile cards (scrolls inside too) */}
+                <ul className="sd-order-cards sd-scroll" onScroll={onOrdersScroll}>
                   {orders.map((o) => (
                     <li key={o._id} className={`sd-ocard ${o.status === "pending" ? "sd-ocard-pending" : ""}`}>
                       <div className="sd-ocard-top">
@@ -1698,6 +2156,17 @@ export default function SellerDashboard() {
           onStatusChange={changeStatus}
           onPaymentChange={changePayment}
           onCopy={copyText}
+        />
+      )}
+
+      {receipt && (
+        <ReceiptModal
+          s={receipt.s}
+          o={receipt.o}
+          rates={rates}
+          storeName={storeName}
+          onClose={() => setReceipt(null)}
+          onDownload={downloadReceipt}
         />
       )}
 

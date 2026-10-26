@@ -210,6 +210,10 @@ const sellerSchema = new mongoose.Schema(
     policyVersion: { type: String, required: true },
     settlementCycleDays: { type: Number, default: 7 },
 
+    /* LinkStorx ne is seller ko ab tak kul kitna diya (paise) */
+    totalPaidOutPaise: { type: Number, default: 0 },
+    lastPayoutAt: { type: Date, default: null },
+
     rejectionReason: { type: String, default: "" },
     verifiedAt: { type: Date, default: null },
     verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },

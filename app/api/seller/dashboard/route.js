@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 
 import { connectToDatabase } from "@/app/lib/database/mongodb.js";
 import Order from "@/app/databaseModels/Order";
+import PayoutRecord from "@/app/databaseModels/PayoutRecord";
 import { requireAuth } from "@/app/lib/auth/auth";
 import { refundIfPaid, HIDDEN_FROM_SELLER } from "@/app/businessLogic/orderLogic";
 import { FEE_CONFIG, toRupees, payoutDueDate } from "@/app/lib/razorpay/settlement";
@@ -30,6 +31,7 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 10;
 const CUSTOMER_PAGE = 5;
+const SETTLEMENT_PAGE = 5;
 const LOW_STOCK_LIMIT = 5;
 const RECENT_CANCEL_DAYS = 7;
 
@@ -259,6 +261,63 @@ async function fetchEarnings(sellerId) {
   };
 }
 
+/* ---------- settlements (admin ne is seller ko kya-kya payout kiya) ---------- */
+async function fetchSettlements(sellerId, skip = 0) {
+  const rows = await PayoutRecord.find({ sellerId })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(SETTLEMENT_PAGE + 1)
+    .lean();
+
+  const page = rows.slice(0, SETTLEMENT_PAGE);
+
+  const ids = page
+    .flatMap((r) => (r.orderIds || []).map(String))
+    .filter((id) => mongoose.Types.ObjectId.isValid(id));
+
+  // sellerId filter: sirf isi seller ke orders
+  const docs = ids.length
+    ? await Order.find({ _id: { $in: ids }, sellerId }).select("totalQty items.name items.quantity").lean()
+    : [];
+  const byId = new Map(
+    docs.map((d) => [
+      String(d._id),
+      {
+        qty: Number(d.totalQty) || 0,
+        items: (d.items || []).map((i) => `${i.name} × ${i.quantity}`).join(", "),
+      },
+    ])
+  );
+
+  return {
+    settlements: page.map((r) => {
+      const orders = (r.orders || []).map((o) => {
+        const info = byId.get(String(o.orderId)) || { qty: 0, items: "" };
+        return {
+          orderNumber: o.orderNumber,
+          items: info.items,
+          quantity: info.qty,
+          amount: toRupees(o.amountPaise),
+          deliveredAt: o.deliveredAt || null,
+        };
+      });
+      return {
+        id: String(r._id),
+        status: r.status, // Pending | Paid | Failed
+        amount: toRupees(r.amountPaise),
+        orderCount: r.orderIds?.length || 0,
+        productCount: orders.reduce((sum, o) => sum + o.quantity, 0),
+        utr: r.status === "Paid" ? r.utr || "" : "", // UTR sirf paid hone par dikhta hai
+        createdAt: r.createdAt,
+        paidAt: r.paidAt || null,
+        bank: { bankName: r.bank?.bankName || "", last4: r.bank?.last4 || "" },
+        orders,
+      };
+    }),
+    hasMore: rows.length > SETTLEMENT_PAGE,
+  };
+}
+
 // Low-stock products. Product model ke field names apne schema se match karo.
 async function getLowStock(sellerId) {
   try {
@@ -301,6 +360,12 @@ export async function GET(req) {
       return json({ success: true, ...result });
     }
 
+    // ---- settlements show more ----
+    if (section === "settlements") {
+      const result = await fetchSettlements(sellerId, toSkip(searchParams.get("skip")));
+      return json({ success: true, ...result });
+    }
+
     // ---- customers show more ----
     if (section === "customers") {
       const result = await fetchCustomers(sellerId, toSkip(searchParams.get("skip")));
@@ -328,26 +393,36 @@ export async function GET(req) {
 
     const cancelSince = new Date(Date.now() - RECENT_CANCEL_DAYS * 86400000);
 
-    const [statusAll, kpiAgg, customersInRange, customersPage, recentCancelled, unseen, lowStock, earnings] =
-      await Promise.all([
-        // all-time: status cards, pending count
-        Order.aggregate([{ $match: base }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
-        // selected range: orders / sales
-        Order.aggregate([
-          { $match: rangeMatch },
-          { $group: { _id: "$status", count: { $sum: 1 }, sales: { $sum: "$subtotal" } } },
-        ]),
-        Order.aggregate([...customerBase(rangeMatch), { $count: "n" }]),
-        fetchCustomers(sellerId, 0),
-        Order.countDocuments({ ...base, status: "cancelled", updatedAt: { $gte: cancelSince } }),
-        Order.find({ ...base, sellerSeen: false })
-          .sort({ createdAt: -1 })
-          .limit(5)
-          .select("orderNumber status createdAt updatedAt cancellation payment")
-          .lean(),
-        getLowStock(sellerId),
-        fetchEarnings(sellerId),
-      ]);
+    const [
+      statusAll,
+      kpiAgg,
+      customersInRange,
+      customersPage,
+      recentCancelled,
+      unseen,
+      lowStock,
+      earnings,
+      settlementsPage,
+    ] = await Promise.all([
+      // all-time: status cards, pending count
+      Order.aggregate([{ $match: base }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
+      // selected range: orders / sales
+      Order.aggregate([
+        { $match: rangeMatch },
+        { $group: { _id: "$status", count: { $sum: 1 }, sales: { $sum: "$subtotal" } } },
+      ]),
+      Order.aggregate([...customerBase(rangeMatch), { $count: "n" }]),
+      fetchCustomers(sellerId, 0),
+      Order.countDocuments({ ...base, status: "cancelled", updatedAt: { $gte: cancelSince } }),
+      Order.find({ ...base, sellerSeen: false })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select("orderNumber status createdAt updatedAt cancellation payment")
+        .lean(),
+      getLowStock(sellerId),
+      fetchEarnings(sellerId),
+      fetchSettlements(sellerId, 0),
+    ]);
 
     const statusCounts = { pending: 0, confirmed: 0, shipped: 0, delivered: 0, cancelled: 0 };
     for (const row of statusAll) {
@@ -420,6 +495,8 @@ export async function GET(req) {
       statusCounts,
       customers: customersPage.customers,
       customersHasMore: customersPage.hasMore,
+      settlements: settlementsPage.settlements,
+      settlementsHasMore: settlementsPage.hasMore,
       attention: {
         pending: statusCounts.pending,
         lowStock: lowStock.length,

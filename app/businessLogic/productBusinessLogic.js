@@ -73,7 +73,7 @@ function encryptText(plain) {
   return [iv, tag, encrypted].map((b) => b.toString("base64")).join(".");
 }
 
-function decryptText(payload) {
+export function decryptText(payload) {
   const [iv, tag, encrypted] = String(payload || "")
     .split(".")
     .map((p) => Buffer.from(p, "base64"));

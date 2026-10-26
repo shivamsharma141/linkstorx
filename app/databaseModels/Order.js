@@ -86,6 +86,13 @@ const OrderSchema = new Schema(
       payoutDueBy: { type: Date, default: null }, // deliveredAt + 7 din
       payoutStatus: { type: String, enum: ["pending", "paid"], default: "pending" },
       paidOutAt: { type: Date, default: null },
+
+      /* admin payout system */
+      payoutId: { type: Schema.Types.ObjectId, ref: "PayoutRecord", default: null },
+      adminDeliveryStatus: { type: String, enum: ["unchecked", "verified", "issue"], default: "unchecked" },
+      adminDeliveryCheckedAt: { type: Date, default: null },
+      adminDeliveryCheckedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+      adminDeliveryNote: { type: String, default: "", maxlength: 300 },
     },
 
     status: { type: String, enum: ORDER_STATUSES, default: "pending" },
