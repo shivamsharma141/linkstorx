@@ -12,6 +12,8 @@ import {
   isProfileImageOwnedBy,
 } from "@/app/businessLogic/uploadBusinessLogic";
 
+import { getTheme, isValidThemeId, DEFAULT_THEME_ID } from "@/app/lib/theme/profileThemes";
+
 /* =========================================================
    CONSTANTS
 ========================================================= */
@@ -29,14 +31,13 @@ const SOCIAL_PLATFORMS = [
   "website",
 ];
 
-const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+/* Bio limit: max 50 words */
+const MAX_BIO_WORDS = 50;
+const MAX_BIO_CHARS = 500;
 
-const DEFAULT_ACCENT = "#2563eb";
-const DEFAULT_BACKGROUND = "#f5f0e9";
-
-/* Bio limit: max 150 words (database bharne se bachane ke liye) */
-const MAX_BIO_WORDS = 150;
-const MAX_BIO_CHARS = 1500; // safety net, model ke maxlength se match karta hai
+const MAX_PILL_CHARS = 30;
+const DEFAULT_PILL_TEXT = "Available for work";
+const MAX_SUBTITLE_CHARS = 60;
 
 /* =========================================================
    ERROR HELPER
@@ -45,8 +46,19 @@ const MAX_BIO_CHARS = 1500; // safety net, model ke maxlength se match karta hai
 function createAppError(message, statusCode) {
   const error = new Error(message);
   error.statusCode = statusCode;
-
   return error;
+}
+
+/* =========================================================
+   SUBSCRIPTION HOOK
+   Verified badge abhi har seller ke liye allowed hai.
+   Subscription banne ke baad sirf yahan check lagana:
+     const sub = await findSubscriptionByUserId(userId);
+     return Boolean(sub?.active);
+========================================================= */
+
+async function canUseVerifiedBadge(userId) {
+  return true;
 }
 
 /* =========================================================
@@ -56,9 +68,7 @@ function createAppError(message, statusCode) {
 function normalizeUrl(url) {
   const value = String(url || "").trim();
 
-  if (!value) {
-    return "";
-  }
+  if (!value) return "";
 
   if (
     value.startsWith("https://") ||
@@ -70,7 +80,6 @@ function normalizeUrl(url) {
     return value;
   }
 
-  // instagram.com/shivam -> https://instagram.com/shivam
   return `https://${value}`;
 }
 
@@ -82,6 +91,7 @@ function mapLink(item) {
   return {
     id: item._id.toString(),
     title: item.title,
+    subtitle: item.subtitle || "",
     url: item.url,
     icon: item.icon,
     enabled: item.enabled,
@@ -113,9 +123,7 @@ function mapSocialIcon(item) {
 ========================================================= */
 
 function toPlainProfile(profile, { publicOnly = false } = {}) {
-  if (!profile) {
-    return null;
-  }
+  if (!profile) return null;
 
   const filterEnabled = (items) =>
     publicOnly ? items.filter((item) => item.enabled) : items;
@@ -123,14 +131,20 @@ function toPlainProfile(profile, { publicOnly = false } = {}) {
   const sortByPosition = (items) =>
     [...items].sort((a, b) => a.position - b.position);
 
+  const theme = getTheme(profile.theme);
+
   return {
     username: profile.publicUsername,
-
     displayName: profile.displayName,
-
     bio: profile.bio,
-
     profileImage: profile.profileImage,
+    signatureImage: profile.signatureImage || "",
+    verifiedBadge: Boolean(profile.verifiedBadge),
+
+    availableForWork: {
+      enabled: Boolean(profile.availableForWork?.enabled),
+      text: profile.availableForWork?.text || DEFAULT_PILL_TEXT,
+    },
 
     categoryTags: profile.categoryTags || [],
 
@@ -138,17 +152,14 @@ function toPlainProfile(profile, { publicOnly = false } = {}) {
       filterEnabled((profile.primaryButtons || []).map(mapButton))
     ),
 
-    links: sortByPosition(
-      filterEnabled((profile.links || []).map(mapLink))
-    ),
+    links: sortByPosition(filterEnabled((profile.links || []).map(mapLink))),
 
-    socialIcons: filterEnabled(
-      (profile.socialIcons || []).map(mapSocialIcon)
-    ),
+    socialIcons: filterEnabled((profile.socialIcons || []).map(mapSocialIcon)),
 
     theme: {
-      accentColor: profile.theme?.accentColor || DEFAULT_ACCENT,
-      backgroundColor: profile.theme?.backgroundColor || DEFAULT_BACKGROUND,
+      themeId: theme.id,
+      accentColor: theme.accent,
+      backgroundColor: theme.bg,
     },
 
     isPublished: Boolean(profile.isPublished),
@@ -192,7 +203,6 @@ function validateDisplayName(displayName) {
   return displayName ? String(displayName).trim() : "";
 }
 
-/* Bio: max 150 words (frontend pehle hi kaat deta hai, yeh server-side guard hai) */
 function validateBio(bio) {
   const value = bio ? String(bio).trim() : "";
 
@@ -210,37 +220,32 @@ function validateBio(bio) {
 }
 
 /*
- * Profile image rules:
- *  - khali ho sakti hai (image hata di)
+ * Profile photo + signature dono ke liye:
+ *  - khali ho sakti hai
  *  - https URL honi chahiye
- *  - ya toh wahi image jo pehle se saved hai, ya is user ki apni uploaded
- *    image. Doosre user ki image ka URL accept nahi hota.
+ *  - wahi image jo pehle se saved hai, ya is user ki apni uploaded image
  */
-function validateProfileImage(url, userId, currentImage) {
-  if (!url) {
-    return "";
-  }
+function validateOwnedImage(url, userId, currentImage, label = "image") {
+  if (!url) return "";
 
   const normalized = String(url).trim();
 
   if (!/^https:\/\//i.test(normalized)) {
-    throw createAppError("Invalid profile image URL.", 400);
+    throw createAppError(`Invalid ${label} URL.`, 400);
   }
 
   if (
     normalized !== (currentImage || "") &&
     !isProfileImageOwnedBy(normalized, userId)
   ) {
-    throw createAppError("Invalid profile image.", 400);
+    throw createAppError(`Invalid ${label}.`, 400);
   }
 
   return normalized;
 }
 
 function validateCategoryTags(tags) {
-  if (!Array.isArray(tags)) {
-    return [];
-  }
+  if (!Array.isArray(tags)) return [];
 
   if (tags.length > 5) {
     throw createAppError("You can add up to 5 category tags.", 400);
@@ -257,9 +262,7 @@ function validateCategoryTags(tags) {
  * A row with only one of them filled is a validation error.
  */
 function validateLinks(links) {
-  if (!Array.isArray(links)) {
-    return [];
-  }
+  if (!Array.isArray(links)) return [];
 
   const filled = links.filter(
     (link) =>
@@ -277,6 +280,7 @@ function validateLinks(links) {
 
     return {
       title,
+      subtitle: String(link?.subtitle || "").trim().slice(0, MAX_SUBTITLE_CHARS),
       url,
       icon: link?.icon ? String(link.icon).trim() : "",
       enabled: link?.enabled === undefined ? true : Boolean(link.enabled),
@@ -285,14 +289,9 @@ function validateLinks(links) {
   });
 }
 
-/*
- * Buttons are allowed to have an empty URL so the user can
- * create a button first and add the destination later.
- */
+/* Buttons may have an empty URL (destination can be added later). */
 function validatePrimaryButtons(buttons) {
-  if (!Array.isArray(buttons)) {
-    return [];
-  }
+  if (!Array.isArray(buttons)) return [];
 
   const filled = buttons.filter(
     (button) =>
@@ -317,14 +316,8 @@ function validatePrimaryButtons(buttons) {
   });
 }
 
-/*
- * Only supported platforms are kept. Empty URL => enabled=false,
- * so an empty icon never appears publicly.
- */
 function validateSocialIcons(icons) {
-  if (!Array.isArray(icons)) {
-    return [];
-  }
+  if (!Array.isArray(icons)) return [];
 
   return icons
     .filter((icon) => SOCIAL_PLATFORMS.includes(icon?.platform))
@@ -339,32 +332,26 @@ function validateSocialIcons(icons) {
     });
 }
 
-function validateAccentColor(color) {
-  if (!color) {
-    return DEFAULT_ACCENT;
-  }
+function validateAvailableForWork(value) {
+  const text =
+    String(value?.text || "").trim().slice(0, MAX_PILL_CHARS) || DEFAULT_PILL_TEXT;
 
-  const normalized = String(color).trim();
-
-  if (!HEX_COLOR_PATTERN.test(normalized)) {
-    throw createAppError("Invalid accent color.", 400);
-  }
-
-  return normalized;
+  return {
+    enabled: Boolean(value?.enabled),
+    text,
+  };
 }
 
-function validateBackgroundColor(color) {
-  if (!color) {
-    return DEFAULT_BACKGROUND;
-  }
+/* Client sirf themeId bhejta hai. Colors server khud nikalta hai. */
+function validateTheme(theme) {
+  const id = isValidThemeId(theme?.themeId) ? theme.themeId : DEFAULT_THEME_ID;
+  const resolved = getTheme({ themeId: id });
 
-  const normalized = String(color).trim();
-
-  if (!HEX_COLOR_PATTERN.test(normalized)) {
-    throw createAppError("Invalid background color.", 400);
-  }
-
-  return normalized;
+  return {
+    themeId: resolved.id,
+    accentColor: resolved.accent,
+    backgroundColor: resolved.bg,
+  };
 }
 
 /* =========================================================
@@ -374,46 +361,38 @@ function validateBackgroundColor(color) {
 export async function getProfileForDashboard(userId, accountUsername) {
   const profile = await findProfileByUserId(userId);
 
-  // No profile yet -> full default structure for the editor
   if (!profile) {
+    const defaultTheme = getTheme({ themeId: DEFAULT_THEME_ID });
+
     return {
       exists: false,
-
       username: "",
-
       suggestedUsername: accountUsername || "",
-
       displayName: "",
-
       bio: "",
-
       profileImage: "",
-
+      signatureImage: "",
+      verifiedBadge: false,
+      availableForWork: { enabled: false, text: DEFAULT_PILL_TEXT },
       categoryTags: [],
-
       primaryButtons: [],
-
       links: [],
-
       socialIcons: SOCIAL_PLATFORMS.map((platform) => ({
         id: null,
         platform,
         url: "",
         enabled: false,
       })),
-
       theme: {
-        accentColor: DEFAULT_ACCENT,
-        backgroundColor: DEFAULT_BACKGROUND,
+        themeId: defaultTheme.id,
+        accentColor: defaultTheme.accent,
+        backgroundColor: defaultTheme.bg,
       },
-
       isPublished: false,
-
       publishedAt: null,
     };
   }
 
-  // Existing profile -> make sure every platform is present
   const socialMap = new Map(
     (profile.socialIcons || []).map((item) => [item.platform, item])
   );
@@ -432,32 +411,20 @@ export async function getProfileForDashboard(userId, accountUsername) {
       };
     }
 
-    return {
-      id: null,
-      platform,
-      url: "",
-      enabled: false,
-    };
+    return { id: null, platform, url: "", enabled: false };
   });
 
   return {
     exists: true,
-
     ...toPlainProfile(profile),
-
     socialIcons: normalizedSocialIcons,
   };
 }
 
 /* =========================================================
    PUBLIC PROFILE READ
-
-   - Published profile  -> sab dekh sakte hain.
-   - Draft profile      -> sirf owner (viewerUserId match) dekh sakta
-                           hai (dashboard preview ke liye). Baaki sab
-                           ko 404.
-
-   Store page bhi isi function se gate hota hai.
+   Published -> sab dekh sakte hain. Draft -> sirf owner.
+   Store page bhi isi se gate hota hai.
 ========================================================= */
 
 export async function getPublicProfile(username, viewerUserId = null) {
@@ -503,11 +470,7 @@ export async function checkUsernameAvailability(username, currentUserId) {
 
 /* =========================================================
    SAVE PROFILE
-
-   Draft aur published dono mein same save chalta hai.
-   isPublished yahan kabhi change nahi hota -> published page
-   pe har auto-save seedha live ho jata hai, draft draft hi
-   rehta hai.
+   isPublished yahan kabhi change nahi hota.
 ========================================================= */
 
 export async function saveProfile(userId, data) {
@@ -521,7 +484,6 @@ export async function saveProfile(userId, data) {
 
   const username = validateUsername(data.username);
 
-  // Current user's own profile is excluded from this check
   const usernameTaken = await checkUsernameExists(username, userId);
 
   if (usernameTaken) {
@@ -530,34 +492,38 @@ export async function saveProfile(userId, data) {
 
   const existingProfile = await findProfileByUserId(userId);
   const oldProfileImage = existingProfile?.profileImage || "";
+  const oldSignatureImage = existingProfile?.signatureImage || "";
 
   const payload = {
     userId,
-
     publicUsername: username,
-
     displayName: validateDisplayName(data.displayName),
-
     bio: validateBio(data.bio),
 
-    profileImage: validateProfileImage(
+    profileImage: validateOwnedImage(
       data.profileImage,
       userId,
-      oldProfileImage
+      oldProfileImage,
+      "profile image"
     ),
 
+    signatureImage: validateOwnedImage(
+      data.signatureImage,
+      userId,
+      oldSignatureImage,
+      "signature image"
+    ),
+
+    verifiedBadge:
+      Boolean(data.verifiedBadge) && (await canUseVerifiedBadge(userId)),
+
+    availableForWork: validateAvailableForWork(data.availableForWork),
+
     categoryTags: validateCategoryTags(data.categoryTags),
-
     primaryButtons: validatePrimaryButtons(data.primaryButtons),
-
     links: validateLinks(data.links),
-
     socialIcons: validateSocialIcons(data.socialIcons),
-
-    theme: {
-      accentColor: validateAccentColor(data.theme?.accentColor),
-      backgroundColor: validateBackgroundColor(data.theme?.backgroundColor),
-    },
+    theme: validateTheme(data.theme),
   };
 
   let profile;
@@ -565,7 +531,6 @@ export async function saveProfile(userId, data) {
   if (existingProfile) {
     profile = await updateProfile(userId, payload);
   } else {
-    // New profile always starts as draft (isPublished default false)
     profile = await createProfile(payload);
   }
 
@@ -573,23 +538,22 @@ export async function saveProfile(userId, data) {
     throw createAppError("Unable to save profile.", 500);
   }
 
-  // Image badli hai toh purani Cloudinary se delete karo
   if (oldProfileImage && oldProfileImage !== payload.profileImage) {
     await deleteProfileImage(oldProfileImage, userId);
   }
 
+  if (oldSignatureImage && oldSignatureImage !== payload.signatureImage) {
+    await deleteProfileImage(oldSignatureImage, userId);
+  }
+
   return {
     exists: true,
-
     ...toPlainProfile(profile),
   };
 }
 
 /* =========================================================
-   PUBLISH
-
-   Sirf publish hai. Unpublish system hata diya gaya hai:
-   ek baar publish hone ke baad page live hi rehta hai.
+   PUBLISH (sirf publish, unpublish nahi)
 ========================================================= */
 
 export async function publishProfile(userId) {
@@ -599,7 +563,6 @@ export async function publishProfile(userId) {
 
   const existingProfile = await findProfileByUserId(userId);
 
-  // Profile abhi save hi nahi hui -> publish nahi ho sakta
   if (!existingProfile) {
     throw createAppError(
       "Please complete and save your profile before publishing.",
@@ -615,7 +578,6 @@ export async function publishProfile(userId) {
 
   return {
     exists: true,
-
     ...toPlainProfile(profile),
   };
 }

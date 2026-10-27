@@ -990,3 +990,53 @@
   padding: 3px 8px;
   border-radius: 999px;
 }
+
+
+/* =========================================================
+   v4: store follows the profile theme (background + buttons)
+========================================================= */
+
+.ls-store-page {
+  background: var(--pub-page-bg-css, var(--pub-page-bg));
+  font-family: "Inter", "Poppins", ui-sans-serif, system-ui, sans-serif;
+}
+
+.ls-btn-primary {
+  background: var(--pub-btn-bg, var(--pub-accent));
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--pub-accent) 28%, transparent);
+}
+
+.ls-chip-active {
+  background: var(--pub-btn-bg, var(--pub-accent));
+}
+
+.ls-cart-badge {
+  background: var(--pub-btn-bg, var(--pub-accent));
+}
+
+.ls-toast {
+  background: var(--pub-btn-bg, var(--pub-accent));
+}
+
+.ls-store-back,
+.ls-cart-icon,
+.ls-btn-outline,
+.ls-store-search,
+.ls-store-filter-btn {
+  border-radius: 14px;
+}
+
+.ls-store-hero {
+  border-radius: 24px;
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--pub-accent) 14%, transparent);
+}
+
+.ls-product-card {
+  border-radius: 20px;
+  background: var(--pub-card-bg);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.ls-product-card:hover {
+  box-shadow: 0 16px 30px color-mix(in srgb, var(--pub-accent) 18%, transparent);
+}

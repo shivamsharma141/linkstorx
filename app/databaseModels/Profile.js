@@ -1,72 +1,29 @@
 import mongoose from "mongoose";
 
-/* Bio max 150 words. Words ka check business logic mein hota hai,
-   yahan maxlength sirf safety net hai (150 words < 1500 chars). */
-export const MAX_BIO_WORDS = 150;
-export const MAX_BIO_CHARS = 1500;
+/* Bio max 50 words. Word check is in business logic; maxlength is a safety net. */
+export const MAX_BIO_WORDS = 50;
+export const MAX_BIO_CHARS = 500;
 
 const linkSchema = new mongoose.Schema(
   {
-    title: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    url: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    icon: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    enabled: {
-      type: Boolean,
-      default: true,
-    },
-
-    position: {
-      type: Number,
-      default: 0,
-    },
+    title: { type: String, required: true, trim: true },
+    subtitle: { type: String, trim: true, default: "", maxlength: 60 },
+    url: { type: String, required: true, trim: true },
+    icon: { type: String, trim: true, default: "" },
+    enabled: { type: Boolean, default: true },
+    position: { type: Number, default: 0 },
   },
-  {
-    _id: true,
-  }
+  { _id: true }
 );
 
 const primaryButtonSchema = new mongoose.Schema(
   {
-    label: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    url: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    enabled: {
-      type: Boolean,
-      default: true,
-    },
-
-    position: {
-      type: Number,
-      default: 0,
-    },
+    label: { type: String, required: true, trim: true },
+    url: { type: String, trim: true, default: "" },
+    enabled: { type: Boolean, default: true },
+    position: { type: Number, default: 0 },
   },
-  {
-    _id: true,
-  }
+  { _id: true }
 );
 
 const socialIconSchema = new mongoose.Schema(
@@ -74,32 +31,12 @@ const socialIconSchema = new mongoose.Schema(
     platform: {
       type: String,
       required: true,
-      enum: [
-        "instagram",
-        "youtube",
-        "linkedin",
-        "whatsapp",
-        "x",
-        "facebook",
-        "telegram",
-        "website",
-      ],
+      enum: ["instagram", "youtube", "linkedin", "whatsapp", "x", "facebook", "telegram", "website"],
     },
-
-    url: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    enabled: {
-      type: Boolean,
-      default: true,
-    },
+    url: { type: String, trim: true, default: "" },
+    enabled: { type: Boolean, default: true },
   },
-  {
-    _id: true,
-  }
+  { _id: true }
 );
 
 const profileSchema = new mongoose.Schema(
@@ -111,10 +48,7 @@ const profileSchema = new mongoose.Schema(
       unique: true,
     },
 
-    /*
-     * Independent public URL username.
-     * Not linked to the account/login username.
-     */
+    /* Independent public URL username (not the login username). */
     publicUsername: {
       type: String,
       required: true,
@@ -123,77 +57,45 @@ const profileSchema = new mongoose.Schema(
       lowercase: true,
     },
 
-    displayName: {
-      type: String,
-      trim: true,
-      default: "",
+    displayName: { type: String, trim: true, default: "" },
+
+    bio: { type: String, trim: true, default: "", maxlength: MAX_BIO_CHARS },
+
+    profileImage: { type: String, trim: true, default: "" },
+
+    /* Handwritten signature shown on the cover photo (optional). */
+    signatureImage: { type: String, trim: true, default: "" },
+
+    /* Blue tick next to the name. Will be gated by subscription later. */
+    verifiedBadge: { type: Boolean, default: false },
+
+    availableForWork: {
+      enabled: { type: Boolean, default: false },
+      text: { type: String, trim: true, default: "Available for work", maxlength: 30 },
     },
 
-    bio: {
-      type: String,
-      trim: true,
-      default: "",
-      maxlength: MAX_BIO_CHARS,
-    },
+    categoryTags: { type: [String], default: [] },
 
-    profileImage: {
-      type: String,
-      trim: true,
-      default: "",
-    },
+    primaryButtons: { type: [primaryButtonSchema], default: [] },
 
-    categoryTags: {
-      type: [String],
-      default: [],
-    },
+    links: { type: [linkSchema], default: [] },
 
-    primaryButtons: {
-      type: [primaryButtonSchema],
-      default: [],
-    },
+    socialIcons: { type: [socialIconSchema], default: [] },
 
-    links: {
-      type: [linkSchema],
-      default: [],
-    },
-
-    socialIcons: {
-      type: [socialIconSchema],
-      default: [],
-    },
-
+    /* themeId is the source of truth. accentColor/backgroundColor are
+       derived from it on save (kept for older code / store). */
     theme: {
-      accentColor: {
-        type: String,
-        default: "#2563eb",
-      },
-      backgroundColor: {
-        type: String,
-        default: "#f5f0e9",
-      },
+      themeId: { type: String, default: "crimson" },
+      accentColor: { type: String, default: "#e11d48" },
+      backgroundColor: { type: String, default: "#ffffff" },
     },
 
-    /*
-     * Publish state.
-     * false => draft: sirf owner preview mein dekh sakta hai.
-     * true  => live: public URL (profile + store) pe sab dekh sakte hain,
-     *          aur har save automatically live page update karta hai.
-     * Ek baar publish hone ke baad wapas draft nahi hota.
-     */
-    isPublished: {
-      type: Boolean,
-      default: false,
-      index: true,
-    },
+    /* false => draft (only owner sees it). true => live. Never goes back to draft. */
+    isPublished: { type: Boolean, default: false, index: true },
 
-    publishedAt: {
-      type: Date,
-      default: null,
-    },
+    publishedAt: { type: Date, default: null },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 export default mongoose.models.Profile ||

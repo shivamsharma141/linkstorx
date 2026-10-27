@@ -842,3 +842,186 @@
   .pe-toast, .pe-confetti i, .pe-modal, .pe-modal-overlay { animation: none !important; transition: none !important; }
   .pe-confetti { display: none; }
 }
+
+/* =========================================================
+   v4 additions: themes, badges, signature, link subtitle
+========================================================= */
+
+/* ---------- theme cards ---------- */
+.pe-themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.pe-theme {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 8px 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: .25s var(--ease);
+}
+
+.pe-theme:hover {
+  border-color: #c7d7fb;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-3px);
+}
+
+.pe-theme-active,
+.pe-theme-active:hover {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-ring);
+}
+
+.pe-theme-art {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 116px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, .06);
+}
+
+.pe-theme-avatar {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .18);
+}
+
+.pe-theme-line {
+  display: block;
+  width: 54%;
+  height: 6px;
+  border-radius: 99px;
+}
+
+.pe-theme-btn {
+  display: block;
+  width: 72%;
+  height: 15px;
+  border-radius: 7px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .18);
+}
+
+.pe-theme-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+  animation: pe-pop .3s var(--ease);
+}
+
+.pe-theme-name {
+  padding: 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.pe-theme-vibe {
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* ---------- option rows (badges) ---------- */
+.pe-opt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pe-opt-text {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.pe-opt-text b {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.pe-opt-text span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pe-opt-input {
+  flex: 1 1 100%;
+}
+
+/* ---------- signature ---------- */
+.pe-sign {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1.5px dashed #93b4fb;
+  border-radius: 14px;
+}
+
+.pe-sign-preview {
+  width: 140px;
+  height: 72px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #1f2937;
+}
+
+.pe-sign-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.pe-sign-empty {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* ---------- link card: 2x2 fields on wide screens ---------- */
+@media (min-width: 761px) {
+  .pe-link-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pe-link-fields .pe-select {
+    grid-column: auto;
+  }
+}

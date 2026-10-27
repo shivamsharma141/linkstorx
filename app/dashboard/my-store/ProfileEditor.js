@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
+import { PROFILE_THEMES, getTheme } from "@/app/lib/theme/profileThemes";
+
 const SOCIAL_PLATFORMS = ["instagram","youtube","linkedin","whatsapp","x","facebook","telegram","website"];
 
 const SOCIAL_META = {
@@ -13,35 +15,23 @@ const SOCIAL_META = {
   x: { label: "X", color: "#000000" },
   facebook: { label: "Facebook", color: "#1877F2" },
   telegram: { label: "Telegram", color: "#229ED9" },
-  website: { label: "Website", color: "#5c5245" },
+  website: { label: "Website", color: "#374151" },
 };
-
-const DEFAULT_THEME = { accentColor: "#0066ff", backgroundColor: "#ffffff" };
-
-/* Page background hamesha white hai (background color option hata diya) */
-const FIXED_BG = "#ffffff";
-
-const THEME_PRESETS = [
-  { name: "Royal Blue", accent: "#0066ff" },
-  { name: "Indigo",     accent: "#4f46e5" },
-  { name: "Violet",     accent: "#7c3aed" },
-  { name: "Emerald",    accent: "#059669" },
-  { name: "Rose",       accent: "#e11d48" },
-  { name: "Amber",      accent: "#d97706" },
-  { name: "Midnight",   accent: "#0f172a" },
-];
 
 const TAG_SUGGESTIONS = ["Creator", "Store", "Fashion", "Fitness", "Tech", "Food", "Education", "Art"];
 
-/* ---------- bio limit: 80 words (database ko bharne se bachane ke liye) ---------- */
-const MAX_BIO_WORDS = 80;
-const MAX_BIO_CHARS = 800; // safety net, words limit pehle hit hoti hai
+/* ---------- limits ---------- */
+const MAX_BIO_WORDS = 50;
+const MAX_BIO_CHARS = 500; // safety net, words limit pehle hit hoti hai
+const MAX_PILL_CHARS = 30;
+const MAX_SUBTITLE_CHARS = 60;
+const DEFAULT_PILL_TEXT = "Available for work";
 
 function countWords(text) {
   return (String(text || "").match(/\S+/g) || []).length;
 }
 
-/* 150 words ke baad ka text kaat deta hai (paste karne par bhi) */
+/* max words ke baad ka text kaat deta hai (paste karne par bhi) */
 function limitWords(text, max) {
   const re = /\S+/g;
   let count = 0;
@@ -98,10 +88,9 @@ function SocialIcon({ platform, size = 18 }) {
 
   if (platform === "website") {
     return (
-      <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2">
-        <circle cx="12" cy="12" r="9" />
-        <path d="M3 12h18" />
-        <path d="M12 3c2.5 2.6 3.9 5.7 3.9 9s-1.4 6.4-3.9 9c-2.5-2.6-3.9-5.7-3.9-9S9.5 5.6 12 3z" />
+      <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 13a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.5 1.5" />
+        <path d="M14 11a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.5-1.5" />
       </svg>
     );
   }
@@ -145,15 +134,15 @@ const UI_ICONS = {
   checkcircle: "M22 11.08V12a10 10 0 11-5.93-9.14|M22 4L12 14.01l-3-3",
   info: "M12 22a10 10 0 100-20 10 10 0 000 20z|M12 16v-4|M12 8h.01",
   grip: "M9 6h.01|M15 6h.01|M9 12h.01|M15 12h.01|M9 18h.01|M15 18h.01",
-  text: "M4 7V4h16v3|M9 20h6|M12 4v16",
   globe: "M12 22a10 10 0 100-20 10 10 0 000 20z|M2 12h20|M12 2a15 15 0 010 20 15 15 0 010-20z",
   layers: "M12 2L2 7l10 5 10-5z|M2 17l10 5 10-5|M2 12l10 5 10-5",
-  drop: "M12 2.7l5.7 5.7a8 8 0 11-11.4 0z",
   hash: "M4 9h16|M4 15h16|M10 3L8 21|M16 3l-2 18",
   cloud: "M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z",
   zap: "M13 2L3 14h9l-1 8 10-12h-9z",
   back: "M19 12H5|M12 19l-7-7 7-7",
   lock: "M5 11h14v10H5z|M8 11V7a4 4 0 018 0v4",
+  pen: "M12 20h9|M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z",
+  badge: "M12 2l2.4 2 3.1-.3 1.1 2.9 2.8 1.4-.8 3 .8 3-2.8 1.4-1.1 2.9-3.1-.3L12 22l-2.4-2-3.1.3-1.1-2.9L2.6 15l.8-3-.8-3 2.8-1.4 1.1-2.9 3.1.3z|M8.5 12l2.5 2.5 4.5-5",
 };
 
 function Icon({ name, size = 16 }) {
@@ -200,19 +189,6 @@ function normalizeUrl(url) {
   if (!value) return "";
   if (/^(https?:|mailto:|tel:|whatsapp:)/.test(value)) return value;
   return `https://${value}`;
-}
-
-/* readable text color (black/white) on top of a hex background */
-function readableOn(hex) {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex || "");
-  if (!m) return "#ffffff";
-  const n = parseInt(m[1], 16);
-  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
-    const c = v / 255;
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  });
-  const lum = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
-  return lum > 0.3 ? "#0a1a3f" : "#ffffff";
 }
 
 const DEVICE_SIZES = {
@@ -288,47 +264,23 @@ function EmptyState({ icon, title, text, actionLabel, onAction }) {
   );
 }
 
-function ColorField({ label, value, onChange }) {
-  const [draft, setDraft] = useState(value);
-
-  useEffect(() => {
-    setDraft(value);
-  }, [value]);
-
-  function handleText(raw) {
-    let next = raw.trim();
-    if (next && !next.startsWith("#")) next = "#" + next;
-    setDraft(next);
-    if (/^#[0-9a-fA-F]{6}$/.test(next)) onChange(next.toLowerCase());
-  }
-
-  return (
-    <div className="pe-color-field">
-      <span className="pe-label">{label}</span>
-      <div className="pe-color-editor">
-        <label className="pe-color-swatch" style={{ background: value }}>
-          <input type="color" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} />
-        </label>
-        <input className="pe-row-input pe-mono" value={draft} maxLength={7} onChange={(e) => handleText(e.target.value)} />
-      </div>
-    </div>
-  );
-}
-
 export default function ProfileEditor({ initialProfile, backHref = "/dashboard" }) {
   const [profile, setProfile] = useState(() => ({
     username: initialProfile.username || initialProfile.suggestedUsername || "",
     displayName: initialProfile.displayName || "",
     bio: limitWords(initialProfile.bio || "", MAX_BIO_WORDS),
     profileImage: initialProfile.profileImage || "",
+    signatureImage: initialProfile.signatureImage || "",
+    verifiedBadge: Boolean(initialProfile.verifiedBadge),
+    availableForWork: {
+      enabled: Boolean(initialProfile.availableForWork?.enabled),
+      text: initialProfile.availableForWork?.text || DEFAULT_PILL_TEXT,
+    },
     categoryTags: initialProfile.categoryTags || [],
     primaryButtons: initialProfile.primaryButtons || [],
-    links: initialProfile.links || [],
+    links: (initialProfile.links || []).map((l) => ({ ...l, subtitle: l.subtitle || "" })),
     socialIcons: withDefaultSocialIcons(initialProfile.socialIcons || []),
-    theme: {
-      accentColor: initialProfile.theme?.accentColor || DEFAULT_THEME.accentColor,
-      backgroundColor: FIXED_BG,
-    },
+    theme: { themeId: getTheme(initialProfile.theme).id },
   }));
 
   const [activeTab, setActiveTab] = useState("profile");
@@ -337,7 +289,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   const [saveStatus, setSaveStatus] = useState(initialProfile.exists ? "saved" : "idle");
   const [usernameStatus, setUsernameStatus] = useState(initialProfile.exists ? "available" : "idle");
   const [usernameMessage, setUsernameMessage] = useState("");
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(null); // null | "profileImage" | "signatureImage"
   const [photoOver, setPhotoOver] = useState(false);
   const [copied, setCopied] = useState(false);
   const [baseUrl, setBaseUrl] = useState("");
@@ -373,8 +325,8 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   /* ---------- preview sizing ---------- */
   const stageRef = useRef(null);
   const [stageWidth, setStageWidth] = useState(320);
-  const [vh, setVh] = useState(800); // screen height (phone preview bahar na nikle)
-  const [now, setNow] = useState(""); // phone status bar ka time
+  const [vh, setVh] = useState(800);
+  const [now, setNow] = useState("");
 
   useEffect(() => {
     const el = stageRef.current;
@@ -386,7 +338,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     return () => observer.disconnect();
   }, []);
 
-  /* screen height track karo (rotate / resize par preview adjust ho) */
   useEffect(() => {
     const onResize = () => setVh(window.innerHeight);
     onResize();
@@ -394,7 +345,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  /* status bar ka live time */
   useEffect(() => {
     const tick = () =>
       setNow(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }));
@@ -405,8 +355,8 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
 
   const device = DEVICE_SIZES[previewMode];
 
-  const maxPhoneW = stageWidth >= 640 ? 340 : 300; // tablet par thoda bada phone
-  const byHeight = Math.round((vh * 0.8 * device.width) / device.height); // screen height ke andar
+  const maxPhoneW = stageWidth >= 640 ? 340 : 300;
+  const byHeight = Math.round((vh * 0.8 * device.width) / device.height);
 
   const screenW = Math.max(
     previewMode === "mobile"
@@ -417,15 +367,14 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   const scale = screenW / device.width;
   const screenH = Math.round(device.height * scale);
 
-  /* Notch ke neeche ka area: page yahin se start hota hai, notch ke peeche nahi */
-  const notchH = previewMode === "mobile" ? MOBILE_NOTCH_H : 0; // screen px
-  const frameH = Math.max(1, Math.round((screenH - notchH) / scale)); // iframe ki real height
+  const notchH = previewMode === "mobile" ? MOBILE_NOTCH_H : 0;
+  const frameH = Math.max(1, Math.round((screenH - notchH) / scale));
 
   useEffect(() => {
     setBaseUrl(window.location.origin);
   }, []);
 
-  /* Server se publish state sync: reload / back karne par bhi "Live" hi dikhe */
+  /* Server se publish state sync */
   useEffect(() => {
     let cancelled = false;
 
@@ -571,7 +520,11 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
       const payload = {
         ...current,
         bio: limitWords(current.bio, MAX_BIO_WORDS),
-        theme: { ...current.theme, backgroundColor: FIXED_BG },
+        theme: { themeId: current.theme.themeId },
+        availableForWork: {
+          enabled: current.availableForWork.enabled,
+          text: current.availableForWork.text.trim() || DEFAULT_PILL_TEXT,
+        },
         links: current.links.map((link, index) => ({ ...link, url: normalizeUrl(link.url), position: index })),
         primaryButtons: current.primaryButtons.map((button, index) => ({ ...button, url: normalizeUrl(button.url), position: index })),
         socialIcons: current.socialIcons.map((social) => ({ ...social, url: normalizeUrl(social.url) })),
@@ -600,11 +553,9 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     }
   }
 
-  /* Pending autosave timer cancel karke turant save. Publish se pehle use hota hai. */
   async function saveNow() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
-    // Pehle chal rahi save ko khatam hone do (duplicate create se bachne ke liye)
     if (savePromise.current) {
       try {
         await savePromise.current;
@@ -661,7 +612,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     setPublishError("");
 
     try {
-      // Pehle pending changes save karo, phir publish
       const saved = await saveNow();
 
       if (!saved) {
@@ -704,7 +654,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     setShowPublishModal(false);
   }
 
-  /* Escape se popup band */
   useEffect(() => {
     if (!showPublishModal) return;
 
@@ -721,8 +670,12 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     setProfile((prev) => ({ ...prev, [field]: value }));
   }
 
-  function updateTheme(patch) {
-    setProfile((prev) => ({ ...prev, theme: { ...prev.theme, ...patch } }));
+  function updateTheme(themeId) {
+    setProfile((prev) => ({ ...prev, theme: { themeId } }));
+  }
+
+  function updatePill(patch) {
+    setProfile((prev) => ({ ...prev, availableForWork: { ...prev.availableForWork, ...patch } }));
   }
 
   function handleBioChange(e) {
@@ -743,13 +696,8 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   }
 
   /*
-   * Image -> WebP, 100-150KB.
-   * 1) max 1000px side, quality 0.85 se start
-   * 2) size zyada ho toh quality 0.4 tak girti hai
-   * 3) phir bhi zyada ho toh dimensions 15% chhoti karke dobara try
-   * Browser WebP encode na kare (purana Safari) toh JPEG jaata hai,
-   * server (Cloudinary) usse WebP bana dega.
-   * Fail hone par null return hota hai (badi original upload nahi hoti).
+   * Image -> WebP, 100-150KB (transparency bachti hai, signature ke liye zaroori).
+   * Fail hone par null return hota hai.
    */
   async function shrinkImage(file) {
     try {
@@ -773,7 +721,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
         let quality = 0.85;
         blob = await toBlob(canvas, type, quality);
 
-        // WebP support check (pehli baar)
         if (type === "image/webp" && (!blob || blob.type !== "image/webp")) {
           type = "image/jpeg";
           blob = await toBlob(canvas, type, quality);
@@ -800,23 +747,21 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     }
   }
 
-  /* file input aur drag-drop dono yahi use karte hain */
-  async function processImageFile(original) {
+  /* file input aur drag-drop dono yahi use karte hain. field = "profileImage" | "signatureImage" */
+  async function processImageFile(original, field = "profileImage") {
     if (!original) return;
 
-    // Format check: sirf JPG, PNG, WebP
     if (!ALLOWED_IMAGE_TYPES.includes(original.type)) {
       showToast("Only JPG, PNG and WEBP images are allowed.", "error");
       return;
     }
 
-    // Size check: 5MB se badi image allowed nahi
     if (original.size > MAX_UPLOAD_BYTES) {
       showToast("Image must be smaller than 5MB.", "error");
       return;
     }
 
-    setUploading(true);
+    setUploading(field);
     try {
       const file = await shrinkImage(original);
 
@@ -834,7 +779,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
       try {
         data = await response.json();
       } catch {
-        /* server returned non-JSON (crash page) */
+        /* server returned non-JSON */
       }
 
       if (!response.ok || !data?.success) {
@@ -842,19 +787,19 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
         return;
       }
 
-      updateField("profileImage", data.url);
-      showToast("Photo uploaded.");
+      updateField(field, data.url);
+      showToast(field === "signatureImage" ? "Signature uploaded." : "Photo uploaded.");
     } catch {
       showToast("Upload failed. Check your connection and try again.", "error");
     } finally {
-      setUploading(false);
+      setUploading(null);
     }
   }
 
-  async function handleImageChange(event) {
+  async function handleImageChange(event, field = "profileImage") {
     const input = event.target;
     const original = input.files?.[0];
-    await processImageFile(original);
+    await processImageFile(original, field);
     input.value = "";
   }
 
@@ -862,7 +807,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     e.preventDefault();
     setPhotoOver(false);
     if (uploading) return;
-    processImageFile(e.dataTransfer.files?.[0]);
+    processImageFile(e.dataTransfer.files?.[0], "profileImage");
   }
 
   /* ---------- drag & drop reorder ---------- */
@@ -936,6 +881,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
       {
         id: createId(),
         title: meta ? meta.label : "New link",
+        subtitle: "",
         url: "",
         icon: platform || "",
         enabled: true,
@@ -1027,13 +973,10 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
 
   const tabIndex = Math.max(0, TABS.findIndex((t) => t.key === activeTab));
 
-  const accentText = readableOn(profile.theme.accentColor);
-
   const availableSuggestions = TAG_SUGGESTIONS.filter((t) => !profile.categoryTags.includes(t)).slice(0, 5);
 
   return (
     <div className={`pe-wrapper pe-wrapper-${previewMode}`}>
-      {/* Back button: tablet/mobile par sabse upar (preview ke bhi upar) */}
       <Link href={backHref} className="pe-backlink pe-backlink-top">
         <Icon name="back" size={15} />
         Back
@@ -1044,7 +987,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
         <header className="pe-greet">
           <div className="pe-greet-left">
             <div>
-              {/* desktop par yahan dikhta hai */}
               <Link href={backHref} className="pe-backlink pe-backlink-inline">
                 <Icon name="back" size={15} />
                 Back
@@ -1059,7 +1001,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
           </div>
 
           <div className="pe-greet-right">
-
             <span className={`pe-pill pe-pill-light pe-pill-${saveStatus}`}>
               <Icon name={saveStatus === "error" ? "alert" : saveStatus === "saved" ? "cloud" : "refresh"} size={13} />
               {statusLabel || "Ready"}
@@ -1252,31 +1193,31 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                           <span>No photo</span>
                         </div>
                       )}
-                      {uploading && <div className="pe-photo-loading"><i className="pe-spin" /></div>}
+                      {uploading === "profileImage" && <div className="pe-photo-loading"><i className="pe-spin" /></div>}
                     </div>
                     <label className="pe-photo-cam" title="Change photo">
                       <Icon name="camera" size={14} />
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
-                        onChange={handleImageChange}
-                        disabled={uploading}
+                        onChange={(e) => handleImageChange(e, "profileImage")}
+                        disabled={Boolean(uploading)}
                         hidden
                       />
                     </label>
                   </div>
 
                   <div className="pe-photo-info">
-                    <p className="pe-photo-title">Profile photo</p>
+                    <p className="pe-photo-title">Cover photo</p>
                     <div className="pe-photo-btns">
                       <label className="pe-btn pe-btn-outline">
                         <Icon name="upload" size={15} />
-                        {uploading ? "Uploading…" : profile.profileImage ? "Change photo" : "Upload photo"}
+                        {uploading === "profileImage" ? "Uploading…" : profile.profileImage ? "Change photo" : "Upload photo"}
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
-                          onChange={handleImageChange}
-                          disabled={uploading}
+                          onChange={(e) => handleImageChange(e, "profileImage")}
+                          disabled={Boolean(uploading)}
                           hidden
                         />
                       </label>
@@ -1287,7 +1228,42 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                         </button>
                       )}
                     </div>
-                    <p className="pe-hint"><Icon name="info" size={12} /> Drag a photo here or upload. JPG, PNG or WEBP, up to 5 MB.</p>
+                    <p className="pe-hint"><Icon name="info" size={12} /> Shown at the top of your page. Drag a photo here or upload. JPG, PNG or WEBP, up to 5 MB.</p>
+                  </div>
+                </div>
+
+                {/* Signature */}
+                <div className="pe-sign">
+                  <div className="pe-sign-preview">
+                    {profile.signatureImage ? (
+                      <img src={profile.signatureImage} alt="Signature" />
+                    ) : (
+                      <span className="pe-sign-empty">No signature</span>
+                    )}
+                  </div>
+
+                  <div className="pe-photo-info">
+                    <p className="pe-photo-title">Signature (optional)</p>
+                    <div className="pe-photo-btns">
+                      <label className="pe-btn pe-btn-outline">
+                        <Icon name="pen" size={15} />
+                        {uploading === "signatureImage" ? "Uploading…" : profile.signatureImage ? "Change signature" : "Upload signature"}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => handleImageChange(e, "signatureImage")}
+                          disabled={Boolean(uploading)}
+                          hidden
+                        />
+                      </label>
+                      {profile.signatureImage && (
+                        <button type="button" className="pe-btn pe-btn-ghost-danger" onClick={() => updateField("signatureImage", "")}>
+                          <Icon name="trash" size={14} />
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <p className="pe-hint"><Icon name="info" size={12} /> Appears on your cover photo. A white PNG with a transparent background looks best.</p>
                   </div>
                 </div>
 
@@ -1332,7 +1308,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                   <textarea
                     value={profile.bio}
                     maxLength={MAX_BIO_CHARS}
-                    rows={4}
+                    rows={3}
                     placeholder="Tell visitors who you are and what you do."
                     onChange={handleBioChange}
                   />
@@ -1341,7 +1317,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                       className={
                         bioLeft <= 0
                           ? "pe-bio-ring pe-bio-ring-full"
-                          : bioLeft <= 20
+                          : bioLeft <= 10
                           ? "pe-bio-ring pe-bio-ring-warn"
                           : "pe-bio-ring"
                       }
@@ -1357,9 +1333,51 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
 
               <section className="pe-section">
                 <SectionHead
+                  icon="badge"
+                  title="Badges"
+                  hint="Small highlights shown next to your name."
+                />
+
+                <div className="pe-opt">
+                  <div className="pe-opt-text">
+                    <b>Verified badge</b>
+                    <span>Show a blue tick next to your name.</span>
+                  </div>
+                  <Toggle
+                    checked={profile.verifiedBadge}
+                    onChange={(v) => updateField("verifiedBadge", v)}
+                    label="Verified badge"
+                  />
+                </div>
+
+                <div className="pe-opt">
+                  <div className="pe-opt-text">
+                    <b>“Available for work” pill</b>
+                    <span>Show a small status pill on the right of your name.</span>
+                  </div>
+                  <Toggle
+                    checked={profile.availableForWork.enabled}
+                    onChange={(v) => updatePill({ enabled: v })}
+                    label="Available for work"
+                  />
+
+                  {profile.availableForWork.enabled && (
+                    <input
+                      className="pe-row-input pe-opt-input"
+                      value={profile.availableForWork.text}
+                      maxLength={MAX_PILL_CHARS}
+                      placeholder={DEFAULT_PILL_TEXT}
+                      onChange={(e) => updatePill({ text: e.target.value })}
+                    />
+                  )}
+                </div>
+              </section>
+
+              <section className="pe-section">
+                <SectionHead
                   icon="tag"
                   title="Category tags"
-                  hint="Add up to 5 tags to show what you do."
+                  hint="Up to 5. They appear under your name like: WEB DEVELOPER | CREATOR"
                   aside={<span className="pe-counter">{profile.categoryTags.length}/5</span>}
                 />
 
@@ -1405,15 +1423,15 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
               <section className="pe-section">
                 <SectionHead
                   icon="pointer"
-                  title="Primary buttons"
-                  hint="These appear prominently below your name. Drag the handle to reorder."
+                  title="Extra buttons"
+                  hint="Shown below the “Visit My Store” button. Drag the handle to reorder."
                 />
 
                 {profile.primaryButtons.length === 0 && (
                   <EmptyState
                     icon="pointer"
-                    title="No buttons yet"
-                    text="Add a main call to action, like “Book a call” or “Shop now”."
+                    title="No extra buttons yet"
+                    text="Add another call to action, like “Book a call” or “Join my community”."
                     actionLabel="Add your first button"
                     onAction={addButton}
                   />
@@ -1529,6 +1547,11 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                             <input className="pe-row-input" value={link.url} placeholder="https://"
                               onChange={(e) => updateLink(link.id, { url: e.target.value })} />
                           </div>
+                          <div className="pe-link-field-title">
+                            <input className="pe-row-input" value={link.subtitle || ""} maxLength={MAX_SUBTITLE_CHARS}
+                              placeholder="Subtitle (optional)"
+                              onChange={(e) => updateLink(link.id, { subtitle: e.target.value })} />
+                          </div>
                           <select
                             className="pe-row-input pe-select"
                             value={isPlatform ? link.icon : ""}
@@ -1623,71 +1646,45 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
               <section className="pe-section">
                 <SectionHead
                   icon="layers"
-                  title="Accent presets"
-                  hint="Pick an accent color for your buttons and highlights. Your page background stays white."
+                  title="Theme"
+                  hint="Each theme sets your page background, button style and accent color. It also applies to your store."
                 />
 
-                <div className="pe-presets">
-                  {THEME_PRESETS.map((preset) => {
-                    const active = profile.theme.accentColor.toLowerCase() === preset.accent;
+                <div className="pe-themes">
+                  {PROFILE_THEMES.map((t) => {
+                    const active = profile.theme.themeId === t.id;
                     return (
                       <button
-                        key={preset.name}
+                        key={t.id}
                         type="button"
-                        className={active ? "pe-preset pe-preset-active" : "pe-preset"}
-                        onClick={() => updateTheme({ accentColor: preset.accent })}
+                        className={active ? "pe-theme pe-theme-active" : "pe-theme"}
+                        onClick={() => updateTheme(t.id)}
                       >
-                        <span className="pe-preset-art">
-                          <span className="pe-mini-avatar" style={{ background: preset.accent }} />
-                          <i style={{ background: preset.accent }} />
-                          <b style={{ background: preset.accent }} />
+                        <span className="pe-theme-art" style={{ background: t.bgCss }}>
+                          <i
+                            className="pe-theme-avatar"
+                            style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent2})` }}
+                          />
+                          <i
+                            className="pe-theme-line"
+                            style={{ background: t.dark ? "rgba(255,255,255,0.35)" : "#cbd5e1" }}
+                          />
+                          <b
+                            className="pe-theme-btn"
+                            style={{ background: `linear-gradient(135deg, ${t.accent}, ${t.accent2})` }}
+                          />
                           {active && (
-                            <span className="pe-preset-check"><Icon name="check" size={11} /></span>
+                            <span className="pe-theme-check"><Icon name="check" size={11} /></span>
                           )}
                         </span>
-                        <span className="pe-preset-name">{preset.name}</span>
+                        <span className="pe-theme-name">{t.name}</span>
+                        <span className="pe-theme-vibe">{t.vibe}</span>
                       </button>
                     );
                   })}
                 </div>
-              </section>
 
-              <section className="pe-section">
-                <SectionHead
-                  icon="drop"
-                  title="Custom accent color"
-                  hint="Choose your own color or type a hex code (#RRGGBB)."
-                />
-
-                <div className="pe-color-grid pe-color-grid-single">
-                  <ColorField
-                    label="Accent color (buttons & highlights)"
-                    value={profile.theme.accentColor}
-                    onChange={(v) => updateTheme({ accentColor: v })}
-                  />
-                </div>
-
-                <div className="pe-sample">
-                  <span className="pe-sample-avatar" style={{ background: profile.theme.accentColor, color: accentText }}>
-                    <Icon name="user" size={18} />
-                  </span>
-                  <div className="pe-sample-text">
-                    <b>{profile.displayName || "Your name"}</b>
-                    <small>Live color sample</small>
-                  </div>
-                  <span className="pe-sample-btn" style={{ background: profile.theme.accentColor, color: accentText }}>
-                    {profile.primaryButtons[0]?.label || "Primary button"}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  className="pe-btn pe-btn-outline"
-                  onClick={() => updateTheme({ accentColor: DEFAULT_THEME.accentColor })}
-                >
-                  <Icon name="refresh" size={15} />
-                  Reset to default
-                </button>
+                <p className="pe-tip"><Icon name="sparkle" size={14} /> Changes show up instantly in the live preview.</p>
               </section>
             </div>
           )}
@@ -1753,7 +1750,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
               {previewMode === "mobile" && <span className="pe-notch" />}
 
               <div className="pe-screen" style={{ width: screenW, height: screenH }}>
-                {/* Phone status area: time + icons, notch yahin hai, page iske NEECHE se start hota hai */}
                 {previewMode === "mobile" && (
                   <div className="pe-statusbar" aria-hidden="true">
                     <span className="pe-status-time">{now}</span>

@@ -53,14 +53,14 @@ export default async function PublicStorePage({ params, searchParams }) {
 
   const viewerUserId = await getViewerUserId();
 
-  /* ?lsPreview=1 editor ke live preview iframe ke liye hai.
-     Sirf logged-in user ke liye chalta hai (draft data waise bhi
-     viewer ke apne browser ke localStorage se aata hai). */
+  /* ?lsPreview=1 editor ke live preview iframe ke liye hai. */
   const previewMode = query.lsPreview === "1" && Boolean(viewerUserId);
+
+  let profile;
 
   try {
     // Page publish nahi hai => store bhi live nahi (owner ko preview milega)
-    await getPublicProfile(username, viewerUserId);
+    profile = await getPublicProfile(username, viewerUserId);
   } catch (error) {
     notFound();
   }
@@ -73,5 +73,12 @@ export default async function PublicStorePage({ params, searchParams }) {
     notFound();
   }
 
-  return <PublicStoreView store={store} previewMode={previewMode} />;
+  /* Store ka theme profile ke theme se aata hai */
+  return (
+    <PublicStoreView
+      store={store}
+      previewMode={previewMode}
+      theme={profile.theme}
+    />
+  );
 }

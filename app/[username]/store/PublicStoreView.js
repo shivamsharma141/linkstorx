@@ -7,42 +7,7 @@ import { useRouter } from "next/navigation";
 import { PRODUCT_CATEGORIES } from "@/app/config/productCategories";
 import CartIcon from "@/app/component/cart/CartIcon";
 import { addToCart } from "@/app/lib/cart/cartStorage";
-
-/* =========================================================
-   THEME (accent + background) — same logic as public profile
-   Default = white page. Text/surface colors flip automatically
-   when the seller picks a dark background.
-========================================================= */
-
-const DEFAULT_ACCENT = "#0066ff";
-const DEFAULT_BG = "#ffffff";
-
-function getLuminance(hex) {
-  const value = String(hex || "").replace("#", "");
-  if (!/^[0-9a-fA-F]{6}$/.test(value)) return 1;
-  const ch = [0, 2, 4].map((i) => {
-    const c = parseInt(value.slice(i, i + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
-}
-
-function buildStoreTheme(accent, background) {
-  const dark = getLuminance(background) < 0.4;
-  const accentLight = getLuminance(accent) > 0.3;
-
-  return {
-    "--pub-accent": accent,
-    "--pub-on-accent": accentLight ? "#0a1a3f" : "#ffffff",
-    "--pub-page-bg": background,
-    "--pub-ink": dark ? "#f4f2fa" : "#0a1a3f",
-    "--pub-muted": dark ? "#aeb6cc" : "#5d6b88",
-    "--pub-card-bg": dark ? "rgba(255,255,255,0.07)" : "#ffffff",
-    "--pub-border": dark ? "rgba(255,255,255,0.14)" : "#e3eaf7",
-    "--pub-field": dark ? "rgba(255,255,255,0.10)" : "#ffffff",
-    background,
-  };
-}
+import { getTheme, buildThemeVars } from "@/app/lib/theme/profileThemes";
 
 /* Pehla letter capital: "premium hoodie" -> "Premium hoodie" */
 function capFirst(value) {
@@ -329,7 +294,7 @@ function ProductCard({ product, seller, accent, preview = false }) {
 /* =========================================================
    MAIN STORE VIEW
 ========================================================= */
-export default function PublicStoreView({ store, previewMode = false }) {
+export default function PublicStoreView({ store, previewMode = false, theme }) {
   const { seller } = store;
   const router = useRouter();
 
@@ -351,10 +316,13 @@ export default function PublicStoreView({ store, previewMode = false }) {
   const carouselRef = useRef(null);
 
   /* ---------- theme (default white) ---------- */
-  const accent = seller.accentColor || seller.theme?.accentColor || DEFAULT_ACCENT;
-  const background =
-    seller.backgroundColor || seller.theme?.backgroundColor || DEFAULT_BG;
-  const themeVars = useMemo(() => buildStoreTheme(accent, background), [accent, background]);
+  const themeObj = useMemo(
+    () => getTheme(theme || seller.theme || { accentColor: seller.accentColor }),
+    [theme, seller]
+  );
+  const accent = themeObj.accent;
+  const background = themeObj.bgCss;
+  const themeVars = useMemo(() => buildThemeVars(themeObj), [themeObj]);
 
   // Paint <body> too, so there is no white/beige gap around the page
   useEffect(() => {
