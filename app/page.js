@@ -221,12 +221,14 @@ export default async function Home() {
                 <span>Sellers and creators are already live</span>
               </div>
 
-              <h1>One link for your store and everything else.</h1>
+              <h1>One Link. Endless Ways to Sell.</h1>
 
               <p className="lx-h-lead">
-                LinkStorX is a link in bio that is also an online store. Put your links, products,
-                events and contact in one page, take orders from the same link, and use your own
-                custom domain. No coding, no separate website.
+                More than a link in bio — LinkStorX is your all-in-one digital storefront.
+  Bring your social links, products, events, and bookings together on one
+  page. Showcase what you offer, help customers discover your brand, and
+  turn visitors into customers with your own online store. Everything you
+  need to build your presence and start selling, all from one link.
               </p>
 
               {user ? (

@@ -22,11 +22,11 @@ function ArrowIcon() {
   );
 }
 
-// Text logo: "LinkStor" ink + "X" thoda bada aur gradient
+// Text logo: "linkstorx" (chunky Chewy font, sab black, same size)
 function LogoText({ className = 'nav-logo-text', xClassName = 'nav-logo-x' }) {
   return (
     <span className={className}>
-      LinkStor<span className={xClassName}>X</span>
+      linkstor<span className={xClassName}>x</span>
     </span>
   );
 }
@@ -74,7 +74,7 @@ export default function Navbar({ user = null }) {
       <header className={`navbar${scrolled ? ' navbar-scrolled' : ''}`}>
         <div className="nav-inner">
           {/* Text Logo */}
-          <Link href="/" className="nav-logo" aria-label="LinkStorX home">
+          <Link href="/" className="nav-logo" aria-label="linkstorx home">
             <LogoText />
           </Link>
 
@@ -94,7 +94,7 @@ export default function Navbar({ user = null }) {
             })}
           </nav>
 
-          {/* Right side: text link + dark pill button (liinks style) */}
+          {/* Right side: text link + dark pill button */}
           <div className="nav-actions">
             {user ? (
               <>
@@ -102,7 +102,6 @@ export default function Navbar({ user = null }) {
                   <button type="submit" className="nav-textlink">Log out</button>
                 </form>
                 <Link href="/dashboard" className="nav-cta">
-                  <span className="nav-cta-avatar">{initial}</span>
                   Dashboard
                 </Link>
               </>
@@ -144,7 +143,7 @@ export default function Navbar({ user = null }) {
         aria-hidden={!menuOpen}
       >
         <div className="drawer-header">
-          <Link href="/" className="drawer-logo" aria-label="LinkStorX home" onClick={() => setMenuOpen(false)}>
+          <Link href="/" className="drawer-logo" aria-label="linkstorx home" onClick={() => setMenuOpen(false)}>
             <LogoText className="drawer-logo-text" xClassName="drawer-logo-x" />
           </Link>
           <button type="button" className="drawer-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
@@ -195,7 +194,7 @@ export default function Navbar({ user = null }) {
               Login / Sign up
             </Link>
           )}
-          <span>© {new Date().getFullYear()} LinkStorX</span>
+          <span>© {new Date().getFullYear()} linkstorx</span>
         </div>
       </aside>
     </>
