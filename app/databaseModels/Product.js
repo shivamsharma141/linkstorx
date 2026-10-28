@@ -18,12 +18,12 @@ const productImageSchema = new mongoose.Schema(
 const productSchema = new mongoose.Schema(
   {
     /* Owning seller. Resolved via Profile.userId — never
-       trust a userId sent from the frontend. */
+       trust a userId sent from the frontend.
+       (Index niche compound indexes se cover hota hai.) */
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
 
     name: {
@@ -160,11 +160,31 @@ const productSchema = new mongoose.Schema(
   }
 );
 
+/* =========================================================
+   PRODUCT INDEXES (fast store + search)
+========================================================= */
+
 /* Slug is unique per seller, not globally unique — two
-   sellers can each have "black-hoodie". */
+   sellers can each have "black-hoodie". Single product page lookup. */
 productSchema.index({ userId: 1, slug: 1 }, { unique: true });
+
+/* Public store: seller ke live products, newest first */
+productSchema.index({ userId: 1, enabled: 1, status: 1, createdAt: -1 });
+
+/* Public store: manual position order */
 productSchema.index({ userId: 1, enabled: 1, position: 1 });
+
+/* Dashboard: seller ki saari products list */
+productSchema.index({ userId: 1, createdAt: -1 });
+
+/* Category filter + featured section */
 productSchema.index({ userId: 1, category: 1 });
+productSchema.index({ userId: 1, featured: 1 });
+
+/* Tag se dhundna */
+productSchema.index({ tags: 1 });
+
+/* Text search (name, description, tags) */
 productSchema.index({ name: "text", description: "text", tags: "text" });
 
 /* =========================================================
@@ -173,12 +193,12 @@ productSchema.index({ name: "text", description: "text", tags: "text" });
 
 const sellerSchema = new mongoose.Schema(
   {
+    /* unique: true khud index bana deta hai (index: true dobara nahi chahiye) */
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
       unique: true,
-      index: true,
     },
 
     fullName: { type: String, required: true, trim: true, maxlength: 80 },
@@ -238,6 +258,9 @@ const sellerSchema = new mongoose.Schema(
     },
   }
 );
+
+/* Admin panel: status ke hisab se newest sellers */
+sellerSchema.index({ sellerStatus: 1, createdAt: -1 });
 
 export const Seller =
   mongoose.models.Seller || mongoose.model("Seller", sellerSchema);

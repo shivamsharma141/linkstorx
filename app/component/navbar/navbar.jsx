@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import './navbar.css';
 
 const NAV_LINKS = [
@@ -17,18 +17,12 @@ const NAV_LINKS = [
 function ArrowIcon() {
   return (
     <svg className="drawer-arrow" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path
-        d="M5 12h14M13 6l6 6-6 6"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-// Text logo: "LinkStor" navy + "X" thoda bada aur blue gradient
+// Text logo: "LinkStor" ink + "X" thoda bada aur gradient
 function LogoText({ className = 'nav-logo-text', xClassName = 'nav-logo-x' }) {
   return (
     <span className={className}>
@@ -42,8 +36,6 @@ export default function Navbar({ user = null }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const profileRef = useRef(null);
 
   const initial = user ? user.username.charAt(0).toUpperCase() : '';
 
@@ -63,41 +55,25 @@ export default function Navbar({ user = null }) {
     };
   }, [menuOpen]);
 
-  // Route change par drawer + dropdown band
+  // Route change par drawer band
   useEffect(() => {
     setMenuOpen(false);
-    setProfileOpen(false);
   }, [pathname]);
 
   // Escape key
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') {
-        setMenuOpen(false);
-        setProfileOpen(false);
-      }
+      if (e.key === 'Escape') setMenuOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Bahar click par profile dropdown band
-  useEffect(() => {
-    if (!profileOpen) return;
-    const onClick = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setProfileOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
-  }, [profileOpen]);
-
   return (
     <>
       <header className={`navbar${scrolled ? ' navbar-scrolled' : ''}`}>
         <div className="nav-inner">
-          {/* Text Logo: LinkStorX (X bada + blue) */}
+          {/* Text Logo */}
           <Link href="/" className="nav-logo" aria-label="LinkStorX home">
             <LogoText />
           </Link>
@@ -118,65 +94,23 @@ export default function Navbar({ user = null }) {
             })}
           </nav>
 
-          {/* Right side actions */}
+          {/* Right side: text link + dark pill button (liinks style) */}
           <div className="nav-actions">
             {user ? (
-              /* Logged in: profile dropdown (sirf desktop) */
-              <div className="profile" ref={profileRef}>
-                <button
-                  type="button"
-                  className="profile-btn"
-                  aria-haspopup="menu"
-                  aria-expanded={profileOpen}
-                  aria-label="Account menu"
-                  onClick={() => setProfileOpen((open) => !open)}
-                >
-                  <span className="profile-avatar">{initial}</span>
-                  <span className="profile-name">{user.username}</span>
-                  <svg className="profile-chevron" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      d="M6 9l6 6 6-6"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </button>
-
-                {profileOpen && (
-                  <div className="profile-dropdown" role="menu">
-                    <div className="profile-user">
-                      <p className="profile-user-name">{user.username}</p>
-                      <p className="profile-user-email">{user.email}</p>
-                    </div>
-
-                    <Link href="/dashboard" className="profile-item" role="menuitem">
-                      Dashboard
-                    </Link>
-
-                    <form action="/api/auth/logout" method="POST">
-                      <button type="submit" className="profile-item profile-logout" role="menuitem">
-                        Logout
-                      </button>
-                    </form>
-                  </div>
-                )}
-              </div>
+              <>
+                <form action="/api/auth/logout" method="POST" className="nav-text-form">
+                  <button type="submit" className="nav-textlink">Log out</button>
+                </form>
+                <Link href="/dashboard" className="nav-cta">
+                  <span className="nav-cta-avatar">{initial}</span>
+                  Dashboard
+                </Link>
+              </>
             ) : (
-              /* Logged out: Login pill (mobile par bhi dikhta hai) */
-              <Link href="/login" className="login-btn" aria-label="Login or sign up">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="8" r="3.4" stroke="currentColor" strokeWidth="1.8" />
-                  <path
-                    d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="login-btn-text">Login</span>
-              </Link>
+              <>
+                <Link href="/login" className="nav-textlink">Login</Link>
+                <Link href="/login" className="nav-cta">Get Started</Link>
+              </>
             )}
 
             {/* Hamburger: sirf mobile */}
@@ -203,34 +137,19 @@ export default function Navbar({ user = null }) {
         aria-hidden="true"
       />
 
-      {/* Mobile drawer: left se right khulta hai — compact so scroller na lage */}
+      {/* Mobile drawer */}
       <aside
         id="mobile-drawer"
         className={`drawer${menuOpen ? ' drawer-open' : ''}`}
         aria-hidden={!menuOpen}
       >
         <div className="drawer-header">
-          <Link
-            href="/"
-            className="drawer-logo"
-            aria-label="LinkStorX home"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link href="/" className="drawer-logo" aria-label="LinkStorX home" onClick={() => setMenuOpen(false)}>
             <LogoText className="drawer-logo-text" xClassName="drawer-logo-x" />
           </Link>
-          <button
-            type="button"
-            className="drawer-close"
-            aria-label="Close menu"
-            onClick={() => setMenuOpen(false)}
-          >
+          <button type="button" className="drawer-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M5 5l14 14M19 5L5 19"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
+              <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </button>
         </div>
@@ -268,22 +187,11 @@ export default function Navbar({ user = null }) {
               </Link>
 
               <form action="/api/auth/logout" method="POST">
-                <button type="submit" className="drawer-logout">
-                  Logout
-                </button>
+                <button type="submit" className="drawer-logout">Log out</button>
               </form>
             </>
           ) : (
             <Link href="/login" className="drawer-login" onClick={() => setMenuOpen(false)}>
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="12" cy="8" r="3.4" stroke="currentColor" strokeWidth="1.8" />
-                <path
-                  d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                />
-              </svg>
               Login / Sign up
             </Link>
           )}

@@ -15,15 +15,26 @@ const ROUTES = {
   login: "/login",
 };
 
+// Logged in user ka "My Store" link. Agar tera my-store route alag hai to sirf yahan change kar.
+const myStoreRoute = (username) => `/${username}/store`;
+
 /* ---------- IMAGES ----------
    A                             */
 const IMAGES = {
-  profile: "herophoto1.webp", 
-  productA: "heroimage.webp", 
-  productB: "heroimage2.webp", 
+  profile: "herophoto1.webp",
+  productA: "heroimage.webp",
+  productB: "heroimage2.webp",
 };
 
 const OWNER = "shivam sharma";
+
+/* hero ke "Sellers and creators" pill ke avatars (internet se). Apni photos ho to /public me daal ke URL badal dena */
+const AVATARS = [
+  { n: 12, bg: "#fbcfe8" },
+  { n: 32, bg: "#c7d2fe" },
+  { n: 47, bg: "#bae6fd" },
+  { n: 5, bg: "#fde68a" },
+];
 
 /* ---------- icons (no emoji) ---------- */
 const P = {
@@ -35,6 +46,11 @@ const P = {
   cart: "M3 4h2l2.4 11h10.2L20 7H6.5M9 20h.01M17 20h.01",
   storeIc: "M4 9l1.5-5h13L20 9M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9M5 12v8h14v-8",
   grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
+  share: "M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4",
+  dots: "M12 6h.01M12 12h.01M12 18h.01",
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1",
+  cal: "M5 5h14v15H5zM5 10h14M9 3v4M15 3v4",
+  mail: "M4 6h16v12H4zM4 7l8 6 8-6",
   fashion: "M8 4l-5 3 2 4 3-1v10h8V10l3 1 2-4-5-3a4 4 0 0 1-8 0z",
   beauty: "M10 3h4v6h-4zM9 9h6v4H9zM8 13h8v8H8z",
   electronics: "M4 15v-3a8 8 0 0 1 16 0v3M4 15h3v5H4zM17 15h3v5h-3z",
@@ -46,7 +62,27 @@ const P = {
   auto: "M4 16v-4l2-5h12l2 5v4M4 16h16M7 19v-3M17 19v-3",
   craft: "M6 7h.01M6 17h.01M8 8l12 9M8 16L20 7",
   gift: "M4 9h16v4H4zM6 13v8h12v-8M12 9v12M12 9c-3 0-4-4-1.5-4.5S12 9 12 9zM12 9c3 0 4-4 1.5-4.5S12 9 12 9z",
+  globe: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z",
+  chart: "M4 20V11M10 20V4M16 20v-6M22 20H2",
+  bolt: "M13 2L4 14h7l-1 8 9-12h-7z",
+  tag: "M3 12V4h8l10 10-8 8L3 12zM7.5 8h.01",
+  dashboard: "M4 4h7v9H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 15h7v5H4z",
 };
+
+/* hero ke neeche scrolling features strip (icon + text) */
+const TICKER = [
+  { label: "Link in bio", icon: P.link },
+  { label: "Your own online store", icon: P.storeIc },
+  { label: "Sell products", icon: P.tag },
+  { label: "Cart and orders", icon: P.cart },
+  { label: "Custom domains", icon: P.globe },
+  { label: "Seller dashboard", icon: P.dashboard },
+  { label: "Built-in analytics", icon: P.chart },
+  { label: "No coding required", icon: P.bolt },
+  { label: "Social links", icon: P.share },
+  { label: "Events tab", icon: P.cal },
+  { label: "Marketplace listing", icon: P.grid },
+];
 
 const CATEGORY_ICONS = [
   [/fashion|cloth/, P.fashion],
@@ -157,111 +193,177 @@ export default async function Home() {
   const createHref = user ? ROUTES.dashboard : ROUTES.login;
   const sellerHref = user ? ROUTES.dashboard : ROUTES.login;
 
+  // Claim link: logged in -> apna store, logged out -> login
+  const myStoreHref = user ? myStoreRoute(user.username) : null;
+
   return (
     <>
       <Navbar user={navUser} />
 
       <main className="lx">
-        {/* ============ 1. INTRO: link in bio + store ============ */}
-        <section className="lx-hero">
-          <div className="lx-wrap lx-hero-grid">
-            <div className="lx-hero-text">
-              <h1>A link  in bio that is also your store and marketplace.</h1>
+        {/* ============ 1. HERO ============ */}
+        <section className="lx-h">
+          <div className="lx-h-glow" aria-hidden="true" />
 
-              <p className="lx-lead">
-                LinkStorX is a link-in-bio platform, but it is not just a page of links.
-                You can build your own store and sell your products from the same link.
+          <div className="lx-wrap lx-h-grid">
+            {/* ---- text ---- */}
+            <div className="lx-h-text">
+              <div className="lx-h-proof">
+                <span className="lx-h-avatars" aria-hidden="true">
+                  {AVATARS.map((a) => (
+                    <i
+                      key={a.n}
+                      style={{ backgroundColor: a.bg, backgroundImage: `url(https://i.pravatar.cc/80?img=${a.n})` }}
+                    />
+                  ))}
+                </span>
+                <span className="lx-h-stars" aria-hidden="true">★★★★★</span>
+                <span>Sellers and creators are already live</span>
+              </div>
+
+              <h1>One link for your store and everything else.</h1>
+
+              <p className="lx-h-lead">
+                LinkStorX is a link in bio that is also an online store. Put your links, products,
+                events and contact in one page, take orders from the same link, and use your own
+                custom domain. No coding, no separate website.
               </p>
 
-              <div className="lx-actions">
-                <Link href={createHref} className="lx-btn lx-btn-solid">Create your page</Link>
-                <Link href={ROUTES.marketplace} className="lx-btn lx-btn-line">Browse products</Link>
-              </div>
+              {user ? (
+                /* logged in -> My Store */
+                <div className="lx-claim">
+                  <div className="lx-claim-field lx-claim-static">
+                    <span>linkstorx.com/</span>
+                    <b>{user.username}</b>
+                  </div>
+                  <Link href={myStoreHref} className="lx-claim-btn">My Store</Link>
+                </div>
+              ) : (
+                /* logged out -> login (username ?username= me jata hai) */
+                <form className="lx-claim" action={ROUTES.login} method="get">
+                  <label className="lx-claim-field">
+                    <span>linkstorx.com/</span>
+                    <input
+                      type="text"
+                      name="username"
+                      placeholder="yourname"
+                      autoComplete="off"
+                      spellCheck="false"
+                      aria-label="Choose your username"
+                    />
+                  </label>
+                  <button type="submit" className="lx-claim-btn">Get Started</button>
+                </form>
+              )}
 
-              <ul className="lx-checks">
-                <li><Icon d={P.check} /> Links page</li>
-                <li><Icon d={P.check} /> Your own store</li>
-                <li><Icon d={P.check} /> Sell products</li>
+              <ul className="lx-h-points">
+                <li><Icon d={P.check} /> Link in bio and ecommerce store in one</li>
+                <li><Icon d={P.check} /> Cart, orders and seller dashboard</li>
+                <li><Icon d={P.check} /> Connect your own custom domain</li>
               </ul>
+
+              <div className="lx-h-links">
+                <Link href={createHref} className="lx-h-btn lx-h-btn-main">
+                  {user ? "Open dashboard" : "Create your page"} <Icon d={P.arrow} />
+                </Link>
+                <Link href={ROUTES.marketplace} className="lx-h-btn lx-h-btn-ghost">
+                  <Icon d={P.storeIc} /> View products
+                </Link>
+              </div>
             </div>
 
-            <div className="lx-stage">
-              {/* store page (mobile) */}
-              <div className="lx-phone">
-                <div className="lx-pp-screen">
-                  <div className="lx-pp-content">
-                    <div className="lx-sp-card">
-                      <div className="lx-sp-hero">
-                        <div className="lx-sp-photo">
-                          {IMAGES.profile ? <img src={IMAGES.profile} alt="" /> : <Icon d={P.user} />}
-                        </div>
-                        <div className="lx-sp-name"><span>{OWNER}</span><i><Icon d={P.arrow} /></i></div>
-                      </div>
-                      <div className="lx-sp-body">
-                        <div className="lx-sp-visit">Visit My Store</div>
-                        <div className="lx-sp-social">
-                          <Social kind="ig" uid="a" />
-                          <Social kind="yt" />
-                          <Social kind="in" />
-                          <Social kind="wa" />
-                        </div>
-                        <p>Creator and seller. All my links and my store in one place.</p>
-                      </div>
-                    </div>
-
-                    <div className="lx-sp-tabs"><b>Links</b><span>Shop</span><span>Events</span><span>About</span><span>Contact</span></div>
-                    <div className="lx-sp-title">My Links</div>
-                    <div className="lx-sp-link lx-sp-ig"><Social kind="ig" uid="b" /> Instagram</div>
-                    <div className="lx-sp-link lx-sp-li"><Social kind="in" uid="c" /> LinkedIn</div>
-                  </div>
-
-                  <div className="lx-pp-status">
-                    <span>9:41</span>
-                    <span className="lx-pp-icons">
-                      <svg viewBox="0 0 18 12" fill="currentColor" aria-hidden="true">
-                        <rect x="0" y="8" width="3" height="4" rx="1" />
-                        <rect x="5" y="5.5" width="3" height="6.5" rx="1" />
-                        <rect x="10" y="3" width="3" height="9" rx="1" />
-                        <rect x="15" y="0" width="3" height="12" rx="1" />
-                      </svg>
-                      <svg viewBox="0 0 26 12" aria-hidden="true">
-                        <rect x="0.5" y="0.5" width="22" height="11" rx="3.5" fill="none" stroke="currentColor" opacity="0.6" />
-                        <rect x="2" y="2" width="19" height="8" rx="2" fill="currentColor" />
-                        <rect x="24" y="4" width="2" height="4" rx="1" fill="currentColor" opacity="0.6" />
-                      </svg>
-                    </span>
-                  </div>
-                  <i className="lx-pp-island" />
-                  <i className="lx-pp-home" />
-                </div>
-              </div>
-
-              {/* shop tab */}
-              <div className="lx-shop">
-                <div className="lx-shop-tabs"><span>Links</span><b>Shop</b><span>Events</span></div>
-                <div className="lx-shop-title">Shop</div>
-                <Link href={ROUTES.marketplace} className="lx-shop-card" aria-label="Classic Hoodie, view products">
-                  <Pic src={IMAGES.productA} tone="c" />
+            {/* ---- 3 cards ---- */}
+            <div className="lx-h-stage">
+              {/* left: shop */}
+              <div className="lx-h-card lx-h-card-l">
+                <Pic src={IMAGES.productA} tone="c" />
+                <div className="lx-h-shop-body">
                   <b>Classic Hoodie</b>
                   <small>Soft fleece, made for everyday wear.</small>
                   <strong>₹1,499</strong>
-                </Link>
+                  <span className="lx-h-order">Add to cart</span>
+                </div>
+                <div className="lx-h-shop-row">
+                  <Pic src={IMAGES.productB} tone="b" />
+                  <div><b>Tshirt</b><small>₹1,299</small></div>
+                  <span className="lx-pill lx-pill-green">In stock</span>
+                </div>
               </div>
 
-              {/* orders */}
-              <div className="lx-ord">
-                <div className="lx-ord-h">Latest orders</div>
-                <Link href={ROUTES.marketplace} className="lx-ord-row">
-                  <Pic src={IMAGES.productA} tone="c" />
-                  <div><b>Classic Hoodie</b><small>Qty 1 · ₹1,499</small></div>
-                  <span className="lx-pill lx-pill-amber">Pending</span>
-                </Link>
-                <Link href={ROUTES.marketplace} className="lx-ord-row">
-                  <Pic src={IMAGES.productB} tone="b" />
-                  <div><b>Tshirt</b><small>Qty 1 · ₹1,299</small></div>
-                  <span className="lx-pill lx-pill-green">Delivered</span>
-                </Link>
+              {/* center: real profile page */}
+              <div className="lx-h-card lx-h-card-c">
+                <div className="lx-h-pf-photo">
+                  {IMAGES.profile ? <img src={IMAGES.profile} alt="" /> : <Icon d={P.user} />}
+                  <span className="lx-h-pf-btn lx-h-pf-share"><Icon d={P.share} /></span>
+                  <span className="lx-h-pf-btn lx-h-pf-more"><Icon d={P.dots} /></span>
+                </div>
+
+                <div className="lx-h-pf-card">
+                  <div className="lx-h-pf-name">
+                    {OWNER}
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="11" fill="#1d9bf0" />
+                      <path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <div className="lx-h-pf-tags">TECH | CREATOR | FITNESS</div>
+                  <p>Web developer and creator. My links and my store in one place.</p>
+                  <div className="lx-h-pf-social">
+                    <Social kind="ig" uid="h1" />
+                    <Social kind="yt" />
+                    <Social kind="in" />
+                    <Social kind="wa" />
+                  </div>
+                  <div className="lx-h-pf-visit"><Icon d={P.storeIc} /> Visit My Store <Icon d={P.arrow} /></div>
+                </div>
+
+                <div className="lx-h-pf-tabs">
+                  <b><Icon d={P.link} /> Links</b>
+                  <span><Icon d={P.storeIc} /> Shop</span>
+                  <span><Icon d={P.cal} /> Events</span>
+                  <span><Icon d={P.mail} /> Contact</span>
+                </div>
+
+                <div className="lx-h-pf-h">My Links</div>
+                <div className="lx-h-pf-link lx-h-pf-link-ig"><Social kind="ig" uid="h2" /><div><b>Instagram</b><small>Follow my journey</small></div></div>
+                <div className="lx-h-pf-link lx-h-pf-link-in"><Social kind="in" uid="h3" /><div><b>LinkedIn</b><small>Let's connect professionally</small></div></div>
               </div>
+
+              {/* right: seller dashboard */}
+              <div className="lx-h-card lx-h-card-r">
+                <div className="lx-h-or-h">Seller dashboard</div>
+                <div className="lx-h-or-stats">
+                  <div><small>Sales</small><b>₹2,798</b></div>
+                  <div><small>Orders</small><b>2</b></div>
+                </div>
+                <div className="lx-h-or-row">
+                  <Pic src={IMAGES.productA} tone="c" />
+                  <div><b>Classic Hoodie</b><small>#LS-261010</small></div>
+                  <span className="lx-pill lx-pill-amber">Pending</span>
+                </div>
+                <div className="lx-h-or-row">
+                  <Pic src={IMAGES.productB} tone="b" />
+                  <div><b>Tshirt</b><small>#LS-261006</small></div>
+                  <span className="lx-pill lx-pill-green">Delivered</span>
+                </div>
+                <div className="lx-h-domain">
+                  <Icon d={P.link} />
+                  <span>shop.yourbrand.com</span>
+                  <i>Custom domain</i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* features ticker */}
+          <div className="lx-h-ticker" aria-label="LinkStorX features">
+            <div className="lx-h-track">
+              {[...TICKER, ...TICKER].map((t, i) => (
+                <span key={i} aria-hidden={i >= TICKER.length ? "true" : undefined}>
+                  <i className="lx-h-tick-ic"><Icon d={t.icon} /></i>
+                  {t.label}
+                </span>
+              ))}
             </div>
           </div>
         </section>
@@ -314,7 +416,7 @@ export default async function Home() {
             <div className="lx-all-text">
               <h2>Everything a seller needs is already inside.</h2>
               <p className="lx-lead">
-                Seller dashboard, store, products, orders. No extra tools to set up
+                Seller dashboard, store, products, orders and custom domains. No extra tools to set up
                 and no separate website to maintain.
               </p>
 
@@ -334,6 +436,10 @@ export default async function Home() {
                 <div>
                   <dt>Cart and orders</dt>
                   <dd>Customers add to cart and order without leaving your page.</dd>
+                </div>
+                <div>
+                  <dt>Custom domains</dt>
+                  <dd>Use your own domain for your links page and your store.</dd>
                 </div>
                 <div>
                   <dt>One link for everything</dt>

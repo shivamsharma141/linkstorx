@@ -23,9 +23,7 @@ const TAG_SUGGESTIONS = ["Creator", "Store", "Fashion", "Fitness", "Tech", "Food
 /* ---------- limits ---------- */
 const MAX_BIO_WORDS = 50;
 const MAX_BIO_CHARS = 500; // safety net, words limit pehle hit hoti hai
-const MAX_PILL_CHARS = 30;
 const MAX_SUBTITLE_CHARS = 60;
-const DEFAULT_PILL_TEXT = "Available for work";
 
 function countWords(text) {
   return (String(text || "").match(/\S+/g) || []).length;
@@ -141,7 +139,6 @@ const UI_ICONS = {
   zap: "M13 2L3 14h9l-1 8 10-12h-9z",
   back: "M19 12H5|M12 19l-7-7 7-7",
   lock: "M5 11h14v10H5z|M8 11V7a4 4 0 018 0v4",
-  pen: "M12 20h9|M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z",
   badge: "M12 2l2.4 2 3.1-.3 1.1 2.9 2.8 1.4-.8 3 .8 3-2.8 1.4-1.1 2.9-3.1-.3L12 22l-2.4-2-3.1.3-1.1-2.9L2.6 15l.8-3-.8-3 2.8-1.4 1.1-2.9 3.1.3z|M8.5 12l2.5 2.5 4.5-5",
 };
 
@@ -270,12 +267,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     displayName: initialProfile.displayName || "",
     bio: limitWords(initialProfile.bio || "", MAX_BIO_WORDS),
     profileImage: initialProfile.profileImage || "",
-    signatureImage: initialProfile.signatureImage || "",
     verifiedBadge: Boolean(initialProfile.verifiedBadge),
-    availableForWork: {
-      enabled: Boolean(initialProfile.availableForWork?.enabled),
-      text: initialProfile.availableForWork?.text || DEFAULT_PILL_TEXT,
-    },
     categoryTags: initialProfile.categoryTags || [],
     primaryButtons: initialProfile.primaryButtons || [],
     links: (initialProfile.links || []).map((l) => ({ ...l, subtitle: l.subtitle || "" })),
@@ -289,7 +281,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   const [saveStatus, setSaveStatus] = useState(initialProfile.exists ? "saved" : "idle");
   const [usernameStatus, setUsernameStatus] = useState(initialProfile.exists ? "available" : "idle");
   const [usernameMessage, setUsernameMessage] = useState("");
-  const [uploading, setUploading] = useState(null); // null | "profileImage" | "signatureImage"
+  const [uploading, setUploading] = useState(false);
   const [photoOver, setPhotoOver] = useState(false);
   const [copied, setCopied] = useState(false);
   const [baseUrl, setBaseUrl] = useState("");
@@ -446,7 +438,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     { key: "photo", label: "Add a profile photo", done: Boolean(profile.profileImage), tab: "profile" },
     { key: "name", label: "Add your display name", done: Boolean(profile.displayName.trim()), tab: "profile" },
     { key: "bio", label: "Write a short bio", done: profile.bio.trim().length >= 20, tab: "profile" },
-    { key: "tags", label: "Add a category tag", done: profile.categoryTags.length > 0, tab: "profile" },
+    { key: "tags", label: "Add what you do", done: profile.categoryTags.length > 0, tab: "profile" },
     { key: "button", label: "Add a primary button", done: activeButtons > 0, tab: "profile" },
     { key: "link", label: "Add your first link", done: activeLinks > 0, tab: "links" },
     { key: "social", label: "Connect a social icon", done: activeSocials > 0, tab: "social" },
@@ -521,10 +513,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
         ...current,
         bio: limitWords(current.bio, MAX_BIO_WORDS),
         theme: { themeId: current.theme.themeId },
-        availableForWork: {
-          enabled: current.availableForWork.enabled,
-          text: current.availableForWork.text.trim() || DEFAULT_PILL_TEXT,
-        },
         links: current.links.map((link, index) => ({ ...link, url: normalizeUrl(link.url), position: index })),
         primaryButtons: current.primaryButtons.map((button, index) => ({ ...button, url: normalizeUrl(button.url), position: index })),
         socialIcons: current.socialIcons.map((social) => ({ ...social, url: normalizeUrl(social.url) })),
@@ -674,10 +662,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     setProfile((prev) => ({ ...prev, theme: { themeId } }));
   }
 
-  function updatePill(patch) {
-    setProfile((prev) => ({ ...prev, availableForWork: { ...prev.availableForWork, ...patch } }));
-  }
-
   function handleBioChange(e) {
     updateField("bio", limitWords(e.target.value, MAX_BIO_WORDS));
   }
@@ -696,7 +680,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   }
 
   /*
-   * Image -> WebP, 100-150KB (transparency bachti hai, signature ke liye zaroori).
+   * Image -> WebP, 100-150KB.
    * Fail hone par null return hota hai.
    */
   async function shrinkImage(file) {
@@ -747,8 +731,8 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     }
   }
 
-  /* file input aur drag-drop dono yahi use karte hain. field = "profileImage" | "signatureImage" */
-  async function processImageFile(original, field = "profileImage") {
+  /* file input aur drag-drop dono yahi use karte hain */
+  async function processImageFile(original) {
     if (!original) return;
 
     if (!ALLOWED_IMAGE_TYPES.includes(original.type)) {
@@ -761,7 +745,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
       return;
     }
 
-    setUploading(field);
+    setUploading(true);
     try {
       const file = await shrinkImage(original);
 
@@ -787,19 +771,19 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
         return;
       }
 
-      updateField(field, data.url);
-      showToast(field === "signatureImage" ? "Signature uploaded." : "Photo uploaded.");
+      updateField("profileImage", data.url);
+      showToast("Photo uploaded.");
     } catch {
       showToast("Upload failed. Check your connection and try again.", "error");
     } finally {
-      setUploading(null);
+      setUploading(false);
     }
   }
 
-  async function handleImageChange(event, field = "profileImage") {
+  async function handleImageChange(event) {
     const input = event.target;
     const original = input.files?.[0];
-    await processImageFile(original, field);
+    await processImageFile(original);
     input.value = "";
   }
 
@@ -807,7 +791,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     e.preventDefault();
     setPhotoOver(false);
     if (uploading) return;
-    processImageFile(e.dataTransfer.files?.[0], "profileImage");
+    processImageFile(e.dataTransfer.files?.[0]);
   }
 
   /* ---------- drag & drop reorder ---------- */
@@ -1193,15 +1177,15 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                           <span>No photo</span>
                         </div>
                       )}
-                      {uploading === "profileImage" && <div className="pe-photo-loading"><i className="pe-spin" /></div>}
+                      {uploading && <div className="pe-photo-loading"><i className="pe-spin" /></div>}
                     </div>
                     <label className="pe-photo-cam" title="Change photo">
                       <Icon name="camera" size={14} />
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
-                        onChange={(e) => handleImageChange(e, "profileImage")}
-                        disabled={Boolean(uploading)}
+                        onChange={handleImageChange}
+                        disabled={uploading}
                         hidden
                       />
                     </label>
@@ -1212,12 +1196,12 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                     <div className="pe-photo-btns">
                       <label className="pe-btn pe-btn-outline">
                         <Icon name="upload" size={15} />
-                        {uploading === "profileImage" ? "Uploading…" : profile.profileImage ? "Change photo" : "Upload photo"}
+                        {uploading ? "Uploading…" : profile.profileImage ? "Change photo" : "Upload photo"}
                         <input
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
-                          onChange={(e) => handleImageChange(e, "profileImage")}
-                          disabled={Boolean(uploading)}
+                          onChange={handleImageChange}
+                          disabled={uploading}
                           hidden
                         />
                       </label>
@@ -1229,41 +1213,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                       )}
                     </div>
                     <p className="pe-hint"><Icon name="info" size={12} /> Shown at the top of your page. Drag a photo here or upload. JPG, PNG or WEBP, up to 5 MB.</p>
-                  </div>
-                </div>
-
-                {/* Signature */}
-                <div className="pe-sign">
-                  <div className="pe-sign-preview">
-                    {profile.signatureImage ? (
-                      <img src={profile.signatureImage} alt="Signature" />
-                    ) : (
-                      <span className="pe-sign-empty">No signature</span>
-                    )}
-                  </div>
-
-                  <div className="pe-photo-info">
-                    <p className="pe-photo-title">Signature (optional)</p>
-                    <div className="pe-photo-btns">
-                      <label className="pe-btn pe-btn-outline">
-                        <Icon name="pen" size={15} />
-                        {uploading === "signatureImage" ? "Uploading…" : profile.signatureImage ? "Change signature" : "Upload signature"}
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          onChange={(e) => handleImageChange(e, "signatureImage")}
-                          disabled={Boolean(uploading)}
-                          hidden
-                        />
-                      </label>
-                      {profile.signatureImage && (
-                        <button type="button" className="pe-btn pe-btn-ghost-danger" onClick={() => updateField("signatureImage", "")}>
-                          <Icon name="trash" size={14} />
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    <p className="pe-hint"><Icon name="info" size={12} /> Appears on your cover photo. A white PNG with a transparent background looks best.</p>
                   </div>
                 </div>
 
@@ -1349,35 +1298,13 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                     label="Verified badge"
                   />
                 </div>
-
-                <div className="pe-opt">
-                  <div className="pe-opt-text">
-                    <b>“Available for work” pill</b>
-                    <span>Show a small status pill on the right of your name.</span>
-                  </div>
-                  <Toggle
-                    checked={profile.availableForWork.enabled}
-                    onChange={(v) => updatePill({ enabled: v })}
-                    label="Available for work"
-                  />
-
-                  {profile.availableForWork.enabled && (
-                    <input
-                      className="pe-row-input pe-opt-input"
-                      value={profile.availableForWork.text}
-                      maxLength={MAX_PILL_CHARS}
-                      placeholder={DEFAULT_PILL_TEXT}
-                      onChange={(e) => updatePill({ text: e.target.value })}
-                    />
-                  )}
-                </div>
               </section>
 
               <section className="pe-section">
                 <SectionHead
                   icon="tag"
-                  title="Category tags"
-                  hint="Up to 5. They appear under your name like: WEB DEVELOPER | CREATOR"
+                  title="What you do"
+                  hint="Add up to 5 short labels. They show under your name like: WEB DEVELOPER | CREATOR"
                   aside={<span className="pe-counter">{profile.categoryTags.length}/5</span>}
                 />
 
@@ -1396,7 +1323,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                     <input
                       className="pe-tag-input"
                       value={tagInput}
-                      placeholder="+ Add tag, press Enter"
+                      placeholder="+ Type what you do, press Enter"
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
@@ -1648,6 +1575,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                   icon="layers"
                   title="Theme"
                   hint="Each theme sets your page background, button style and accent color. It also applies to your store."
+                  aside={<span className="pe-counter">{PROFILE_THEMES.length} themes</span>}
                 />
 
                 <div className="pe-themes">

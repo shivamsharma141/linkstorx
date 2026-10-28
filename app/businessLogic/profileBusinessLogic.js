@@ -35,8 +35,6 @@ const SOCIAL_PLATFORMS = [
 const MAX_BIO_WORDS = 50;
 const MAX_BIO_CHARS = 500;
 
-const MAX_PILL_CHARS = 30;
-const DEFAULT_PILL_TEXT = "Available for work";
 const MAX_SUBTITLE_CHARS = 60;
 
 /* =========================================================
@@ -138,13 +136,7 @@ function toPlainProfile(profile, { publicOnly = false } = {}) {
     displayName: profile.displayName,
     bio: profile.bio,
     profileImage: profile.profileImage,
-    signatureImage: profile.signatureImage || "",
     verifiedBadge: Boolean(profile.verifiedBadge),
-
-    availableForWork: {
-      enabled: Boolean(profile.availableForWork?.enabled),
-      text: profile.availableForWork?.text || DEFAULT_PILL_TEXT,
-    },
 
     categoryTags: profile.categoryTags || [],
 
@@ -220,7 +212,7 @@ function validateBio(bio) {
 }
 
 /*
- * Profile photo + signature dono ke liye:
+ * Profile photo:
  *  - khali ho sakti hai
  *  - https URL honi chahiye
  *  - wahi image jo pehle se saved hai, ya is user ki apni uploaded image
@@ -332,16 +324,6 @@ function validateSocialIcons(icons) {
     });
 }
 
-function validateAvailableForWork(value) {
-  const text =
-    String(value?.text || "").trim().slice(0, MAX_PILL_CHARS) || DEFAULT_PILL_TEXT;
-
-  return {
-    enabled: Boolean(value?.enabled),
-    text,
-  };
-}
-
 /* Client sirf themeId bhejta hai. Colors server khud nikalta hai. */
 function validateTheme(theme) {
   const id = isValidThemeId(theme?.themeId) ? theme.themeId : DEFAULT_THEME_ID;
@@ -371,9 +353,7 @@ export async function getProfileForDashboard(userId, accountUsername) {
       displayName: "",
       bio: "",
       profileImage: "",
-      signatureImage: "",
       verifiedBadge: false,
-      availableForWork: { enabled: false, text: DEFAULT_PILL_TEXT },
       categoryTags: [],
       primaryButtons: [],
       links: [],
@@ -492,7 +472,6 @@ export async function saveProfile(userId, data) {
 
   const existingProfile = await findProfileByUserId(userId);
   const oldProfileImage = existingProfile?.profileImage || "";
-  const oldSignatureImage = existingProfile?.signatureImage || "";
 
   const payload = {
     userId,
@@ -507,17 +486,8 @@ export async function saveProfile(userId, data) {
       "profile image"
     ),
 
-    signatureImage: validateOwnedImage(
-      data.signatureImage,
-      userId,
-      oldSignatureImage,
-      "signature image"
-    ),
-
     verifiedBadge:
       Boolean(data.verifiedBadge) && (await canUseVerifiedBadge(userId)),
-
-    availableForWork: validateAvailableForWork(data.availableForWork),
 
     categoryTags: validateCategoryTags(data.categoryTags),
     primaryButtons: validatePrimaryButtons(data.primaryButtons),
@@ -540,10 +510,6 @@ export async function saveProfile(userId, data) {
 
   if (oldProfileImage && oldProfileImage !== payload.profileImage) {
     await deleteProfileImage(oldProfileImage, userId);
-  }
-
-  if (oldSignatureImage && oldSignatureImage !== payload.signatureImage) {
-    await deleteProfileImage(oldSignatureImage, userId);
   }
 
   return {

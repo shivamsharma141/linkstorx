@@ -61,7 +61,6 @@ const ICONS = {
   link: "M10 13a5 5 0 007.07 0l3-3a5 5 0 00-7.07-7.07l-1.5 1.5|M14 11a5 5 0 00-7.07 0l-3 3a5 5 0 007.07 7.07l1.5-1.5",
   bag: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z|M3 6h18|M16 10a4 4 0 01-8 0",
   calendar: "M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z|M16 2v4|M8 2v4|M3 10h18",
-  user: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2|M12 11a4 4 0 100-8 4 4 0 000 8z",
   mail: "M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z|M22 6l-10 7L2 6",
   store: "M3 9l1.5-5h15L21 9|M3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0|M5 12v8h14v-8|M10 20v-5h4v5",
   share: "M18 8a3 3 0 100-6 3 3 0 000 6z|M6 15a3 3 0 100-6 3 3 0 000 6z|M18 22a3 3 0 100-6 3 3 0 000 6z|M8.6 13.5l6.8 4|M15.4 6.5l-6.8 4",
@@ -241,7 +240,6 @@ const TABS = [
   { key: "links", label: "Links", icon: "link" },
   { key: "shop", label: "Shop", icon: "bag" },
   { key: "events", label: "Events", icon: "calendar" },
-  { key: "about", label: "About", icon: "user" },
   { key: "contact", label: "Contact", icon: "mail" },
 ];
 
@@ -280,8 +278,6 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
   const storeHref = `/${profile.username}/store`;
 
   const tags = profile.categoryTags || [];
-  const pill = profile.availableForWork;
-  const showPill = Boolean(pill?.enabled && pill?.text?.trim());
 
   /* Paint <body> too, so no other background shows around the page */
   useEffect(() => {
@@ -368,12 +364,6 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
               ) : (
                 <div className="pub-cover-placeholder" />
               )}
-
-              {profile.signatureImage && (
-                <div className="pub-signature">
-                  <img src={profile.signatureImage} alt="" />
-                </div>
-              )}
             </div>
 
             <div className="pub-cover-actions" ref={menuRef}>
@@ -424,13 +414,6 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
                 <span>{name}</span>
                 {profile.verifiedBadge && <VerifiedBadge />}
               </h1>
-
-              {showPill && (
-                <span className="pub-pill">
-                  <i />
-                  {pill.text}
-                </span>
-              )}
             </div>
 
             {tags.length > 0 && (
@@ -631,15 +614,6 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
                 <h2 className="pub-section-title">Upcoming Events</h2>
               </div>
               <p className="pub-empty">Events coming soon.</p>
-            </>
-          )}
-
-          {activeSection === "about" && (
-            <>
-              <div className="pub-section-head">
-                <h2 className="pub-section-title">About</h2>
-              </div>
-              <p className="pub-empty">{profile.bio || "No bio yet."}</p>
             </>
           )}
 

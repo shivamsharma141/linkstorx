@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -132,6 +132,7 @@ const ICO = {
   filter: "M4 6h16|M7 12h10|M10 18h4",
   bag: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z|M3 6h18|M16 10a4 4 0 01-8 0",
   tag: "M20.6 13.4l-7.2 7.2a2 2 0 01-2.8 0L2 12V2h10l8.6 8.6a2 2 0 010 2.8z|M7 7h.01",
+  close: "M18 6L6 18|M6 6l12 12",
 };
 
 /* =========================================================
@@ -202,7 +203,7 @@ function ProductCard({ product, seller, accent, preview = false }) {
     <div className="ls-product-card">
       <Link href={productHref} className="ls-product-card-media">
         {images.length > 0 ? (
-          <img src={images[safeIndex]} alt={name} />
+          <img src={images[safeIndex]} alt={name} loading="lazy" />
         ) : (
           <div className="ls-product-card-placeholder">
             <Ico d="M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z|M8.5 10a1.5 1.5 0 100-3 1.5 1.5 0 000 3z|M21 15l-5-5L5 21" size={34} />
@@ -315,6 +316,9 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
 
   const carouselRef = useRef(null);
 
+  /* Typing smooth rahe: heavy filtering deferred value par chalti hai */
+  const deferredSearch = useDeferredValue(search);
+
   /* ---------- theme (default white) ---------- */
   const themeObj = useMemo(
     () => getTheme(theme || seller.theme || { accentColor: seller.accentColor }),
@@ -425,17 +429,44 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
     return PRODUCT_CATEGORIES.filter((c) => set.has(c.value));
   }, [products]);
 
+  /* ---------- SEARCH INDEX ----------
+     Har product ka searchable text ek baar banta hai (products badalne par),
+     har keystroke par dobara nahi. Isse search fast rehti hai. */
+  const searchIndex = useMemo(() => {
+    const map = new Map();
+
+    for (const p of products) {
+      const text = [
+        p.name,
+        p.shortDescription,
+        p.description,
+        p.category,
+        p.subcategory,
+        ...(p.tags || []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      map.set(p.id, text);
+    }
+
+    return map;
+  }, [products]);
+
+  const searchTerms = useMemo(
+    () => deferredSearch.trim().toLowerCase().split(/\s+/).filter(Boolean),
+    [deferredSearch]
+  );
+
   const filtered = useMemo(() => {
-    let list = products.filter((p) => {
+    const list = products.filter((p) => {
       if (category && p.category !== category) return false;
 
-      if (search) {
-        const q = search.toLowerCase();
-        const matches =
-          p.name.toLowerCase().includes(q) ||
-          p.description?.toLowerCase().includes(q) ||
-          p.tags?.some((t) => t.toLowerCase().includes(q));
-        if (!matches) return false;
+      if (searchTerms.length > 0) {
+        const haystack = searchIndex.get(p.id) || "";
+        // har word match hona chahiye (e.g. "blue hoodie")
+        if (!searchTerms.every((term) => haystack.includes(term))) return false;
       }
       return true;
     });
@@ -450,8 +481,9 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
       default:
         return list;
     }
-  }, [products, search, category, sortBy]);
+  }, [products, searchTerms, searchIndex, category, sortBy]);
 
+  const isSearching = searchTerms.length > 0;
   const featured = filtered.filter((p) => p.featured);
 
   function scrollCarousel(dir) {
@@ -568,13 +600,23 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
         <div className="ls-store-search-row">
           <input
             className="ls-store-search"
-            placeholder="Search products..."
+            type="search"
+            placeholder="Search products, tags, categories..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
           />
-          <button type="button" className="ls-store-filter-btn" aria-label="Filters">
-            <Ico d={ICO.filter} size={16} />
-          </button>
+          {search && (
+            <button
+              type="button"
+              className="ls-store-filter-btn"
+              aria-label="Clear search"
+              onClick={() => setSearch("")}
+            >
+              <Ico d={ICO.close} size={16} />
+            </button>
+          )}
         </div>
 
         {availableCategories.length > 0 && (
@@ -599,6 +641,12 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
             ))}
           </div>
         )}
+
+        {isSearching && (
+          <p className="ls-store-result-count">
+            {filtered.length} {filtered.length === 1 ? "result" : "results"} for “{deferredSearch.trim()}”
+          </p>
+        )}
       </div>
 
       {products.length === 0 ? (
@@ -607,7 +655,7 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
         <p className="ls-store-empty">No products match your search.</p>
       ) : (
         <>
-          {featured.length > 0 && !search && !category && (
+          {featured.length > 0 && !isSearching && !category && (
             <section className="ls-store-section">
               <div className="ls-store-section-head">
                 <div>

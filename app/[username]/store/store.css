@@ -1040,3 +1040,270 @@
 .ls-product-card:hover {
   box-shadow: 0 16px 30px color-mix(in srgb, var(--pub-accent) 18%, transparent);
 }
+
+
+/* =========================================================
+   v5: PREMIUM STORE LOOK + MORE COLORS
+   Paste at the very bottom of store.css
+========================================================= */
+
+/* ---------- header: glass card ---------- */
+.ls-store-header {
+  padding: 14px 18px;
+  border-radius: 22px;
+  background: var(--pub-card-bg);
+  border: 1px solid var(--pub-border);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--pub-accent) 10%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.ls-store-avatar {
+  border-color: var(--pub-card-solid, #fff);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--pub-accent) 40%, transparent),
+    0 8px 18px color-mix(in srgb, var(--pub-accent) 25%, transparent);
+}
+
+.ls-store-name {
+  letter-spacing: -0.01em;
+}
+
+/* ---------- hero: two-color gradient + glow ---------- */
+.ls-store-hero {
+  border: 1px solid color-mix(in srgb, var(--pub-accent) 22%, var(--pub-border));
+  background:
+    radial-gradient(circle at 92% 0%, color-mix(in srgb, var(--pub-accent-2, var(--pub-accent)) 40%, transparent), transparent 50%),
+    radial-gradient(circle at 0% 100%, color-mix(in srgb, var(--pub-accent) 30%, transparent), transparent 55%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--pub-accent) 14%, var(--pub-page-bg)),
+      color-mix(in srgb, var(--pub-accent-2, var(--pub-accent)) 18%, var(--pub-page-bg))
+    );
+  box-shadow: 0 20px 44px color-mix(in srgb, var(--pub-accent) 18%, transparent);
+}
+
+.ls-store-hero::before,
+.ls-store-hero::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--pub-accent) 28%, transparent);
+}
+
+.ls-store-hero::before {
+  width: 240px;
+  height: 240px;
+  right: -70px;
+  top: -80px;
+}
+
+.ls-store-hero::after {
+  width: 150px;
+  height: 150px;
+  right: 40px;
+  bottom: -70px;
+  border-color: color-mix(in srgb, var(--pub-accent-2, var(--pub-accent)) 30%, transparent);
+}
+
+.ls-store-hero-eyebrow {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pub-accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pub-accent) 30%, transparent);
+}
+
+.ls-store-hero-title {
+  background: var(--pub-btn-bg, var(--pub-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.ls-store-hero-stats span:not(.ls-dot) {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--pub-card-bg);
+  border: 1px solid var(--pub-border);
+}
+
+/* ---------- search ---------- */
+.ls-store-search {
+  max-width: 480px;
+  border-radius: 999px;
+  padding: 13px 18px 13px 44px;
+  background-position: 16px center;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--pub-accent) 8%, transparent);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ls-store-search:focus {
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--pub-accent) 18%, transparent),
+    0 6px 18px color-mix(in srgb, var(--pub-accent) 12%, transparent);
+}
+
+.ls-store-result-count {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--pub-muted);
+}
+
+/* ---------- category chips: colorful ---------- */
+.ls-chip {
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.ls-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--pub-accent);
+  color: var(--pub-accent);
+}
+
+.ls-chip-active,
+.ls-chip-active:hover {
+  color: var(--pub-on-accent);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--pub-accent) 32%, transparent);
+}
+
+/* ---------- product card: 4 rotating color tints ---------- */
+.ls-store-grid > .ls-product-card,
+.ls-store-carousel > .ls-product-card {
+  --card-tint: var(--pub-accent);
+}
+
+.ls-store-grid > .ls-product-card:nth-child(4n + 2),
+.ls-store-carousel > .ls-product-card:nth-child(4n + 2) {
+  --card-tint: var(--pub-accent-2, var(--pub-accent));
+}
+
+.ls-store-grid > .ls-product-card:nth-child(4n + 3),
+.ls-store-carousel > .ls-product-card:nth-child(4n + 3) {
+  --card-tint: #f59e0b;
+}
+
+.ls-store-grid > .ls-product-card:nth-child(4n + 4),
+.ls-store-carousel > .ls-product-card:nth-child(4n + 4) {
+  --card-tint: #10b981;
+}
+
+.ls-product-card {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--card-tint, var(--pub-accent)) 22%, var(--pub-border));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--card-tint, var(--pub-accent)) 10%, transparent);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+/* colored bar at the bottom of the card */
+.ls-product-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--card-tint, var(--pub-accent)), var(--pub-accent-2, var(--pub-accent)));
+  transform: scaleX(0.28);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.ls-product-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--card-tint, var(--pub-accent));
+  box-shadow: 0 20px 38px color-mix(in srgb, var(--card-tint, var(--pub-accent)) 26%, transparent);
+}
+
+.ls-product-card:hover::after {
+  transform: scaleX(1);
+}
+
+.ls-product-card-media {
+  background: color-mix(in srgb, var(--card-tint, var(--pub-accent)) 12%, var(--pub-page-bg));
+}
+
+.ls-product-card-media img {
+  transition: transform 0.45s ease;
+}
+
+.ls-product-card:hover .ls-product-card-media img {
+  transform: scale(1.06);
+}
+
+.ls-product-card-badge {
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  box-shadow: 0 6px 14px rgba(239, 68, 68, 0.35);
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+
+.ls-price-now {
+  color: var(--card-tint, var(--pub-accent));
+}
+
+.ls-price-off {
+  background: color-mix(in srgb, #16a34a 14%, transparent);
+  color: #16a34a;
+}
+
+.ls-product-card-add {
+  border-radius: 12px;
+}
+
+.ls-btn-primary {
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--pub-accent) 30%, transparent);
+}
+
+.ls-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.ls-btn-outline:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--pub-accent) 8%, var(--pub-field));
+  color: var(--pub-accent);
+}
+
+/* ---------- section titles with accent bar ---------- */
+.ls-store-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ls-store-section-title::before {
+  content: "";
+  width: 5px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--pub-btn-bg, var(--pub-accent));
+}
+
+/* ---------- dark themes: keep things readable ---------- */
+.ls-store-page .ls-sort-select {
+  color-scheme: light;
+}
+
+.ls-store-page .ls-store-search {
+  color: var(--pub-ink);
+}
+
+@media (max-width: 800px) {
+  .ls-store-header {
+    padding: 10px 12px;
+    border-radius: 18px;
+  }
+
+  .ls-store-search {
+    max-width: none;
+    padding: 11px 16px 11px 40px;
+  }
+
+  .ls-store-hero::before {
+    width: 160px;
+    height: 160px;
+  }
+}

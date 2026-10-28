@@ -45,10 +45,11 @@ const profileSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      unique: true,
+      unique: true, // unique index: findProfileByUserId fast
     },
 
-    /* Independent public URL username (not the login username). */
+    /* Independent public URL username (not the login username).
+       unique => MongoDB index, so /username lookups are fast. */
     publicUsername: {
       type: String,
       required: true,
@@ -63,16 +64,8 @@ const profileSchema = new mongoose.Schema(
 
     profileImage: { type: String, trim: true, default: "" },
 
-    /* Handwritten signature shown on the cover photo (optional). */
-    signatureImage: { type: String, trim: true, default: "" },
-
     /* Blue tick next to the name. Will be gated by subscription later. */
     verifiedBadge: { type: Boolean, default: false },
-
-    availableForWork: {
-      enabled: { type: Boolean, default: false },
-      text: { type: String, trim: true, default: "Available for work", maxlength: 30 },
-    },
 
     categoryTags: { type: [String], default: [] },
 
@@ -97,6 +90,16 @@ const profileSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+/* ---------- INDEXES (fast search) ---------- */
+// published profile ko username se dhundna (public page + store)
+profileSchema.index({ isPublished: 1, publicUsername: 1 });
+// display name se search / sorting
+profileSchema.index({ displayName: 1 });
+// category tag se search
+profileSchema.index({ categoryTags: 1 });
+// newest published profiles
+profileSchema.index({ isPublished: 1, publishedAt: -1 });
 
 export default mongoose.models.Profile ||
   mongoose.model("Profile", profileSchema);
