@@ -4,8 +4,11 @@ import {
 } from "@/app/databaseQueries/profileDatabaseQueries";
 
 import {
-  createAnalyticsEvent,
-  aggregateAnalytics,
+  recordVisit,
+  recordTap,
+  findDailyStats,
+  countVisitors,
+  decodeKey,
 } from "@/app/databaseQueries/analyticsDatabaseQueries";
 
 /* =========================================================
@@ -32,7 +35,11 @@ function createAppError(message, statusCode) {
 ========================================================= */
 
 function parseDevice(ua) {
-  if (/ipad|tablet|android(?!.*mobile)/i.test(ua)) return "Tablet";
+  /* iPad / tablet pehle. Android par "Mobile" token na ho tabhi tablet.
+     (Instagram Android UA me "Android" do baar aata hai, isliye
+     "Mobile" poori string me dhundhte hain, sirf uske baad nahi.) */
+  if (/ipad|tablet|kindle|silk/i.test(ua)) return "Tablet";
+  if (/android/i.test(ua) && !/mobile/i.test(ua)) return "Tablet";
   if (/mobi|iphone|ipod|android/i.test(ua)) return "Mobile";
   return "Desktop";
 }
@@ -143,34 +150,44 @@ export async function trackEvent(input, context) {
     ? String(input.visitorId)
     : "";
 
-  const event = {
-    profileId: profile._id,
-    type,
-    visitorId,
-    device: parseDevice(userAgent),
-    country: parseCountry(country),
-    source: resolveSource({
-      ref: input?.ref,
-      referrer: input?.referrer,
-      userAgent,
-      ownHost: String(host).replace(/^www\./, "").toLowerCase(),
-    }),
-  };
+  const device = parseDevice(userAgent);
 
-  if (type === "tap") {
-    const linkId = String(input?.linkId || "").trim().slice(0, 100);
-    const linkKind = LINK_KINDS.includes(input?.linkKind) ? input.linkKind : "";
+  const source = resolveSource({
+    ref: input?.ref,
+    referrer: input?.referrer,
+    userAgent,
+    ownHost: String(host).replace(/^www\./, "").toLowerCase(),
+  });
 
-    if (!linkId || !linkKind) {
-      throw createAppError("Invalid tap.", 400);
-    }
+  const day = dayFormatter.format(new Date());
 
-    event.linkId = linkId;
-    event.linkKind = linkKind;
-    event.linkTitle = String(input?.linkTitle || "").trim().slice(0, 80);
+  if (type === "visit") {
+    await recordVisit({
+      profileId: profile._id,
+      day,
+      visitorId,
+      device,
+      country: parseCountry(country),
+      source,
+    });
+
+    return { tracked: true };
   }
 
-  await createAnalyticsEvent(event);
+  const linkId = String(input?.linkId || "").trim().slice(0, 100);
+  const linkKind = LINK_KINDS.includes(input?.linkKind) ? input.linkKind : "";
+
+  if (!linkId || !linkKind) {
+    throw createAppError("Invalid tap.", 400);
+  }
+
+  await recordTap({
+    profileId: profile._id,
+    day,
+    visitorId,
+    linkKey: `${linkKind}:${linkId}`,
+    linkTitle: String(input?.linkTitle || "").trim().slice(0, 80),
+  });
 
   return { tracked: true };
 }
@@ -207,8 +224,17 @@ function countryName(code) {
   }
 }
 
-function countFor(rows, type) {
-  return (rows || []).find((row) => row._id === type)?.count || 0;
+function addCounts(target, source, decode = false) {
+  for (const [key, value] of Object.entries(source || {})) {
+    const name = decode ? decodeKey(key) : key;
+    target[name] = (target[name] || 0) + (Number(value) || 0);
+  }
+}
+
+function topItems(counts, limit = 8) {
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit);
 }
 
 export async function getAnalytics(userId, rangeParam) {
@@ -220,62 +246,87 @@ export async function getAnalytics(userId, rangeParam) {
   const days = RANGE_DAYS[range];
 
   const keys = buildDayKeys(days);
-  const since = new Date(`${keys[0]}T00:00:00+05:30`);
+  const fromDay = keys[0];
 
   const profile = await findProfileByUserId(userId);
 
-  const raw = profile
-    ? await aggregateAnalytics(profile._id, since, TIMEZONE)
-    : {};
+  let docs = [];
+  let visitors = { people: 0, tappers: 0 };
+
+  if (profile) {
+    [docs, visitors] = await Promise.all([
+      findDailyStats(profile._id, fromDay),
+      countVisitors(profile._id, fromDay),
+    ]);
+  }
 
   /* chart: har din ek point (khali din = 0) */
   const byDay = new Map(keys.map((key) => [key, { date: key, visits: 0, taps: 0 }]));
 
-  for (const row of raw.series || []) {
-    const point = byDay.get(row._id.day);
+  const devices = {};
+  const countries = {};
+  const sources = {};
+  const links = {};
+  const titles = {};
+
+  let visits = 0;
+  let taps = 0;
+
+  /* docs day ke hisaab se sorted hain, isliye title me sabse naya jeetega */
+  for (const doc of docs) {
+    const point = byDay.get(doc.day);
     if (!point) continue;
-    if (row._id.type === "visit") point.visits = row.count;
-    if (row._id.type === "tap") point.taps = row.count;
+
+    point.visits = doc.visits || 0;
+    point.taps = doc.taps || 0;
+    visits += point.visits;
+    taps += point.taps;
+
+    addCounts(devices, doc.devices);
+    addCounts(countries, doc.countries, true);
+    addCounts(sources, doc.sources, true);
+    addCounts(links, doc.links, true);
+
+    for (const [key, title] of Object.entries(doc.linkTitles || {})) {
+      titles[decodeKey(key)] = title;
+    }
   }
 
-  const people = countFor(raw.people, "visit");
-  const tappers = countFor(raw.people, "tap");
+  const { people, tappers } = visitors;
 
   return {
     range,
     isPublished: Boolean(profile?.isPublished),
 
-    visits: countFor(raw.totals, "visit"),
-    taps: countFor(raw.totals, "tap"),
+    visits,
+    taps,
     people,
     tapRate: people > 0 ? Math.min(100, Math.round((tappers / people) * 100)) : 0,
 
     series: [...byDay.values()],
 
-    topLinks: (raw.topLinks || []).map((row) => ({
-      key: `${row._id.kind}:${row._id.id}`,
-      label: row.title || row._id.id,
-      kind: row._id.kind,
-      count: row.count,
+    topLinks: topItems(links).map(([key, count]) => ({
+      key,
+      label: titles[key] || key.slice(key.indexOf(":") + 1),
+      kind: key.slice(0, key.indexOf(":")),
+      count,
     })),
 
-    devices: (raw.devices || []).map((row) => ({
-      key: row._id,
-      label: row._id,
-      count: row.count,
+    devices: topItems(devices).map(([name, count]) => ({
+      key: name,
+      label: name,
+      count,
     })),
 
-    countries: (raw.countries || []).map((row) => ({
-      key: row._id || "unknown",
-      code: row._id || "",
-      label: countryName(row._id),
-      count: row.count,
-    })),
+    countries: topItems(countries).map(([code, count]) => {
+      const real = code === "ZZ" ? "" : code;
+      return { key: code, code: real, label: countryName(real), count };
+    }),
 
-    sources: (raw.sources || []).map((row) => ({
-      key: row._id,
-      label: row._id,
-      count: row.count,
+    sources: topItems(sources).map(([name, count]) => ({
+      key: name,
+      label: name,
+      count,
     })),
   };
 }

@@ -420,9 +420,30 @@
   font-weight: 600;
 }
 
-.an-flag {
-  font-size: 16px;
+.an-ico {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.an-ico-g {
+  font-size: 13px;
+  font-weight: 800;
   line-height: 1;
+}
+
+.an-flag-img {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(17, 24, 39, 0.12);
 }
 
 .an-bar {
