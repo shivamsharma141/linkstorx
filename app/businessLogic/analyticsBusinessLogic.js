@@ -7,6 +7,7 @@ import {
   recordVisit,
   recordTap,
   findDailyStats,
+  findMonthlyStats,
   countVisitors,
   decodeKey,
 } from "@/app/databaseQueries/analyticsDatabaseQueries";
@@ -16,7 +17,10 @@ import {
 ========================================================= */
 
 const TIMEZONE = "Asia/Kolkata"; // IST me din kaatenge (no DST, fixed +05:30)
-const RANGE_DAYS = { "7d": 7, "30d": 30, "90d": 90 };
+/* 7d / 30d daily documents se, 12m monthly documents se (daily 30 din baad delete hote hain) */
+const RANGE_DAYS = { "7d": 7, "30d": 30 };
+const MONTH_RANGE = "12m";
+const MONTHS_BACK = 12;
 const LINK_KINDS = ["link", "offer", "social", "store"];
 
 const VISITOR_PATTERN = /^[a-zA-Z0-9-]{8,64}$/;
@@ -237,9 +241,140 @@ function topItems(counts, limit = 8) {
     .slice(0, limit);
 }
 
+/* "YYYY-MM" ki list: pichle 12 mahine (aaj ka mahina milakar), purana pehle */
+function buildMonthKeys(count) {
+  const [year, month] = dayFormatter.format(new Date()).slice(0, 7).split("-").map(Number);
+  const keys = [];
+
+  for (let i = count - 1; i >= 0; i--) {
+    const total = year * 12 + (month - 1) - i;
+    const y = Math.floor(total / 12);
+    const m = (total % 12) + 1;
+    keys.push(`${y}-${String(m).padStart(2, "0")}`);
+  }
+
+  return keys;
+}
+
+function buildResponse({
+  range,
+  profile,
+  series,
+  visits,
+  taps,
+  people,
+  tappers,
+  devices,
+  countries,
+  sources,
+  links,
+  titles,
+}) {
+  return {
+    range,
+    isPublished: Boolean(profile?.isPublished),
+
+    visits,
+    taps,
+    people,
+    tapRate: people > 0 ? Math.min(100, Math.round((tappers / people) * 100)) : 0,
+
+    series,
+
+    topLinks: topItems(links).map(([key, count]) => ({
+      key,
+      label: titles[key] || key.slice(key.indexOf(":") + 1),
+      kind: key.slice(0, key.indexOf(":")),
+      count,
+    })),
+
+    devices: topItems(devices).map(([name, count]) => ({
+      key: name,
+      label: name,
+      count,
+    })),
+
+    countries: topItems(countries).map(([code, count]) => {
+      const real = code === "ZZ" ? "" : code;
+      return { key: code, code: real, label: countryName(real), count };
+    }),
+
+    sources: topItems(sources).map(([name, count]) => ({
+      key: name,
+      label: name,
+      count,
+    })),
+  };
+}
+
+/* 12 mahine: AnalyticsMonthly se (chart me har mahine ka ek point) */
+async function getMonthlyAnalytics(profile) {
+  const keys = buildMonthKeys(MONTHS_BACK);
+
+  const docs = profile ? await findMonthlyStats(profile._id, keys[0]) : [];
+
+  const byMonth = new Map(keys.map((key) => [key, { date: key, visits: 0, taps: 0 }]));
+
+  const devices = {};
+  const countries = {};
+  const sources = {};
+  const links = {};
+  const titles = {};
+
+  let visits = 0;
+  let taps = 0;
+  let people = 0;
+  let tappers = 0;
+
+  /* docs month ke hisaab se sorted hain, isliye title me sabse naya jeetega */
+  for (const doc of docs) {
+    const point = byMonth.get(doc.month);
+    if (!point) continue;
+
+    point.visits = doc.visits || 0;
+    point.taps = doc.taps || 0;
+    visits += point.visits;
+    taps += point.taps;
+
+    /* har mahine ke unique log jodte hain (insaan har mahine me ek baar ginta hai) */
+    people += doc.people || 0;
+    tappers += doc.tappers || 0;
+
+    addCounts(devices, doc.devices);
+    addCounts(countries, doc.countries, true);
+    addCounts(sources, doc.sources, true);
+    addCounts(links, doc.links, true);
+
+    for (const [key, title] of Object.entries(doc.linkTitles || {})) {
+      titles[decodeKey(key)] = title;
+    }
+  }
+
+  return buildResponse({
+    range: MONTH_RANGE,
+    profile,
+    series: [...byMonth.values()],
+    visits,
+    taps,
+    people,
+    tappers,
+    devices,
+    countries,
+    sources,
+    links,
+    titles,
+  });
+}
+
 export async function getAnalytics(userId, rangeParam) {
   if (!userId) {
     throw createAppError("User authentication is required.", 401);
+  }
+
+  const profile = await findProfileByUserId(userId);
+
+  if (rangeParam === MONTH_RANGE) {
+    return getMonthlyAnalytics(profile);
   }
 
   const range = RANGE_DAYS[rangeParam] ? rangeParam : "7d";
@@ -247,8 +382,6 @@ export async function getAnalytics(userId, rangeParam) {
 
   const keys = buildDayKeys(days);
   const fromDay = keys[0];
-
-  const profile = await findProfileByUserId(userId);
 
   let docs = [];
   let visitors = { people: 0, tappers: 0 };
@@ -292,41 +425,18 @@ export async function getAnalytics(userId, rangeParam) {
     }
   }
 
-  const { people, tappers } = visitors;
-
-  return {
+  return buildResponse({
     range,
-    isPublished: Boolean(profile?.isPublished),
-
+    profile,
+    series: [...byDay.values()],
     visits,
     taps,
-    people,
-    tapRate: people > 0 ? Math.min(100, Math.round((tappers / people) * 100)) : 0,
-
-    series: [...byDay.values()],
-
-    topLinks: topItems(links).map(([key, count]) => ({
-      key,
-      label: titles[key] || key.slice(key.indexOf(":") + 1),
-      kind: key.slice(0, key.indexOf(":")),
-      count,
-    })),
-
-    devices: topItems(devices).map(([name, count]) => ({
-      key: name,
-      label: name,
-      count,
-    })),
-
-    countries: topItems(countries).map(([code, count]) => {
-      const real = code === "ZZ" ? "" : code;
-      return { key: code, code: real, label: countryName(real), count };
-    }),
-
-    sources: topItems(sources).map(([name, count]) => ({
-      key: name,
-      label: name,
-      count,
-    })),
-  };
+    people: visitors.people,
+    tappers: visitors.tappers,
+    devices,
+    countries,
+    sources,
+    links,
+    titles,
+  });
 }

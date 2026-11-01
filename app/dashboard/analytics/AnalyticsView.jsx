@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 const RANGES = [
   { value: "7d", label: "Last 7 days" },
   { value: "30d", label: "Last 30 days" },
-  { value: "90d", label: "Last 90 days" },
+  { value: "12m", label: "Last 12 months" },
 ];
 
 const KIND_LABEL = { link: "Link", offer: "Offer", social: "Social", store: "Store" };
@@ -171,6 +171,15 @@ function Icon({ name, size = 16 }) {
 }
 
 function formatDay(key, long = false) {
+  /* "YYYY-MM" = mahina (12 months range), "YYYY-MM-DD" = din */
+  if (String(key).length === 7) {
+    return new Date(`${key}-01T00:00:00Z`).toLocaleDateString("en-US", {
+      month: long ? "long" : "short",
+      year: long || key.endsWith("-01") ? "numeric" : undefined,
+      timeZone: "UTC",
+    });
+  }
+
   const date = new Date(`${key}T00:00:00Z`);
   return date.toLocaleDateString("en-US", {
     month: "short",
@@ -408,7 +417,7 @@ export default function AnalyticsView({ username, displayName, isPublished }) {
   const stats = [
     { key: "visits", icon: "eye", tone: "rose", title: "Visits", sub: "Each time your page was opened", value: visits },
     { key: "taps", icon: "pointer", tone: "green", title: "Taps", sub: "Each tap on one of your links", value: taps },
-    { key: "people", icon: "users", tone: "amber", title: "People", sub: "Each person counted once", value: people },
+    { key: "people", icon: "users", tone: "amber", title: "People", sub: range === "12m" ? "Each person counted once per month" : "Each person counted once", value: people },
     { key: "rate", icon: "bars", tone: "violet", title: "Visitors who tapped a link", sub: "Out of everyone who visited", value: `${tapRate}%` },
   ];
 

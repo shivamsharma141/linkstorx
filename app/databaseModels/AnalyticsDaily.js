@@ -36,8 +36,8 @@ const analyticsDailySchema = new mongoose.Schema(
 /* upsert + dashboard range query dono isi se */
 analyticsDailySchema.index({ profileId: 1, day: 1 }, { unique: true });
 
-/* 90 din baad apne aap delete */
-analyticsDailySchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
+/* 30 din baad apne aap delete (mahine ka hisaab AnalyticsMonthly me bachta hai) */
+analyticsDailySchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
 
 export default mongoose.models.AnalyticsDaily ||
   mongoose.model("AnalyticsDaily", analyticsDailySchema);

@@ -4,7 +4,8 @@ import mongoose from "mongoose";
  * "People" (unique visitors) ke liye.
  * Ek profile + ek visitor = HAMESHA sirf ek document.
  * Wahi banda kal, parso, ya 50 baar aaye -> wahi document update hota hai.
- * Last activity ke 90 din baad document apne aap delete.
+ * Last activity ke 30 din baad document apne aap delete
+ * (uska hisaab AnalyticsMonthly me pehle hi jama ho chuka hota hai).
  */
 const analyticsVisitorSchema = new mongoose.Schema(
   {
@@ -34,8 +35,8 @@ analyticsVisitorSchema.index({ profileId: 1, visitorId: 1 }, { unique: true });
 /* Dashboard: range me active visitors */
 analyticsVisitorSchema.index({ profileId: 1, lastSeenAt: -1 });
 
-/* Last activity ke 90 din baad auto delete */
-analyticsVisitorSchema.index({ lastSeenAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 90 });
+/* Last activity ke 30 din baad auto delete */
+analyticsVisitorSchema.index({ lastSeenAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
 
 export default mongoose.models.AnalyticsVisitor ||
   mongoose.model("AnalyticsVisitor", analyticsVisitorSchema);
