@@ -65,7 +65,6 @@
   min-width: 0;
 }
 
-.an-select,
 .an-page-chip {
   height: 40px;
   display: inline-flex;
@@ -81,23 +80,44 @@
   text-decoration: none;
 }
 
-.an-select {
-  cursor: pointer;
+/* ---------- date range: segmented buttons ---------- */
+.an-range {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: #f3f4f6;
+  border: 1px solid var(--an-line);
+  border-radius: 10px;
 }
 
-.an-select select {
-  appearance: none;
-  -webkit-appearance: none;
+.an-range-btn {
+  height: 100%;
+  padding: 0 14px;
   border: none;
-  outline: none;
+  border-radius: 7px;
   background: transparent;
-  color: inherit;
+  color: var(--an-muted);
   font: inherit;
-  padding: 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.an-select:focus-within,
+.an-range-btn:hover {
+  color: var(--an-ink);
+}
+
+.an-range-btn.is-active {
+  background: var(--an-card);
+  color: var(--an-brand);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08), 0 0 0 1px var(--an-line);
+}
+
+.an-range-btn:focus-visible,
 .an-page-chip:focus-visible {
   outline: 2px solid var(--an-brand);
   outline-offset: 2px;
@@ -431,6 +451,33 @@
   color: #4b5563;
 }
 
+/* original brand icon: bina grey tile ke, asli rang me */
+.an-ico.an-ico-brand {
+  background: transparent;
+  border-radius: 0;
+}
+
+.an-ico.an-ico-brand svg {
+  display: block;
+  max-width: none;
+}
+
+/* brand icons: global svg/path CSS ko override karo (isi wajah se icons halke dikh rahe the) */
+.an-page .an-brand svg,
+.an-page .an-brand svg * {
+  fill: var(--bi-fill) !important;
+  stroke: var(--bi-stroke) !important;
+  stroke-width: var(--bi-sw) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.an-page .an-brand svg {
+  display: block;
+  max-width: none;
+  overflow: visible;
+}
+
 .an-ico-g {
   font-size: 13px;
   font-weight: 800;
@@ -486,6 +533,8 @@
 @media (max-width: 760px) {
   .an-trio { grid-template-columns: 1fr; }
   .an-head-tools { width: 100%; }
+  .an-range { width: 100%; }
+  .an-range-btn { flex: 1; padding: 0 8px; }
   .an-page-chip { flex: 1 1 180px; }
 }
 
