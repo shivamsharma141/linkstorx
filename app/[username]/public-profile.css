@@ -67,7 +67,6 @@ body {
   background: color-mix(in srgb, var(--pub-accent) 12%, var(--pub-page-bg));
 }
 
-/* poori image dikhegi (crop nahi), card bas thoda overlap karega */
 .pub-cover img {
   width: 100%;
   height: auto;
@@ -180,6 +179,14 @@ body {
   background: color-mix(in srgb, var(--pub-accent) 10%, transparent);
 }
 
+/* back button (cover ke top-left me) */
+.pub-back-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 5;
+}
+
 /* =========================================================
    PROFILE CARD
 ========================================================= */
@@ -219,8 +226,27 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* verified badge: naam ke bilkul side me, beech me aligned */
+.pub-name {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.28em;
+}
+
+.pub-name > span {
+  min-width: 0;
+  line-height: 1.1;
+}
+
 .pub-verified {
   flex: 0 0 auto;
+  display: block;
+  width: 0.72em;
+  height: 0.72em;
+  min-width: 20px;
+  min-height: 20px;
+  position: relative;
+  top: 0.04em; /* lowercase text ke visual center se match */
 }
 
 .pub-pill {
@@ -309,7 +335,7 @@ body {
 }
 
 /* =========================================================
-   BIG BUTTONS (Visit My Store + primary buttons)
+   BIG BUTTON (Visit My Store)
 ========================================================= */
 
 .pub-cta {
@@ -333,10 +359,6 @@ body {
   cursor: pointer;
   box-shadow: 0 12px 24px color-mix(in srgb, var(--pub-accent) 34%, transparent);
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
-}
-
-.pub-cta + .pub-cta {
-  margin-top: 12px;
 }
 
 .pub-cta:hover {
@@ -439,12 +461,20 @@ body {
   padding: 24px 4px 0;
 }
 
+.pub-block {
+  margin-bottom: 30px;
+}
+
 .pub-section-head {
   margin: 0 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.pub-section-headtext {
+  min-width: 0;
 }
 
 .pub-section-title {
@@ -454,6 +484,13 @@ body {
   line-height: 1.2;
   letter-spacing: -0.01em;
   color: var(--pub-ink);
+}
+
+.pub-section-sub {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--pub-muted);
 }
 
 .pub-viewall {
@@ -483,6 +520,150 @@ body {
   color: var(--pub-muted);
   font-size: 14px;
   line-height: 1.6;
+}
+
+/* =========================================================
+   OFFER CARDS  (image poori fill, koi side gap nahi)
+========================================================= */
+
+.pub-offers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.pub-offer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--pub-surface);
+  border: 1px solid var(--pub-surface-border);
+  color: var(--pub-ink);
+  font-family: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.pub-offer:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--pub-accent) 40%, var(--pub-surface-border));
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.13);
+}
+
+.pub-offer:focus-visible {
+  outline: 2px solid var(--pub-accent);
+  outline-offset: 3px;
+}
+
+.pub-offer-static {
+  cursor: default;
+}
+
+.pub-offer-static:hover {
+  transform: none;
+  border-color: var(--pub-surface-border);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
+}
+
+.pub-offer-media {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--pub-accent) 10%, var(--pub-card-solid));
+}
+
+/* image apni natural ratio me poori dikhegi: na crop, na side gaps */
+.pub-offer-media img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+
+.pub-offer-media-empty {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  color: var(--pub-accent);
+  opacity: 0.7;
+}
+
+.pub-offer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 12px 14px 4px;
+  flex: 1 1 auto;
+}
+
+.pub-offer-title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.pub-offer-desc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pub-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.pub-offer-price {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--pub-accent);
+}
+
+.pub-offer-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 14px 14px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pub-accent) 12%, var(--pub-card-solid));
+  color: var(--pub-accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.pub-offer:hover .pub-offer-btn {
+  background: var(--pub-accent);
+  color: var(--pub-on-accent);
+}
+
+.pub-offer-btn svg {
+  flex: 0 0 auto;
+}
+
+/* button nahi hai to niche thoda space */
+.pub-offer-body:last-child {
+  padding-bottom: 14px;
 }
 
 /* =========================================================
@@ -572,6 +753,198 @@ body {
   border-radius: 50%;
   background: color-mix(in srgb, var(--lk, #94a3b8) 16%, var(--pub-surface));
   color: color-mix(in srgb, var(--lk, #64748b) 85%, #000);
+}
+
+/* =========================================================
+   INQUIRY FORM  (compact + clean)
+========================================================= */
+
+.pub-inq {
+  width: 100%;
+  max-width: 560px;
+  margin: 32px auto 0;
+  padding: 20px 18px 18px;
+  border-radius: 20px;
+  background: var(--pub-card-solid);
+  border: 1px solid color-mix(in srgb, var(--pub-accent) 18%, var(--pub-line));
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+  scroll-margin-top: 16px;
+}
+
+.pub-inq-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pub-inq-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--pub-accent) 12%, var(--pub-card-solid));
+  color: var(--pub-accent);
+}
+
+.pub-inq-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--pub-ink);
+}
+
+.pub-inq-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--pub-muted);
+}
+
+.pub-inq-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pub-inq-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pub-inq-input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--pub-surface-border);
+  background: var(--pub-field, color-mix(in srgb, var(--pub-accent) 3%, var(--pub-surface)));
+  color: var(--pub-ink);
+  font-family: inherit;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.pub-inq-input::placeholder {
+  color: var(--pub-muted);
+  opacity: 0.75;
+}
+
+.pub-inq-input:focus {
+  border-color: var(--pub-accent);
+  background: var(--pub-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--pub-accent) 18%, transparent);
+}
+
+.pub-inq-select {
+  appearance: auto;
+  cursor: pointer;
+}
+
+.pub-inq-select option {
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.pub-inq-textarea {
+  height: auto;
+  min-height: 80px;
+  padding: 11px 14px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* honeypot: humans ko nahi dikhta */
+.pub-inq-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pub-inq-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  color: #dc2626;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* chhota submit button (.pub-cta ko override karta hai) */
+.pub-inq .pub-inq-submit {
+  min-height: 46px;
+  height: 46px;
+  margin: 4px 0 0;
+  padding: 0 46px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--pub-accent) 28%, transparent);
+}
+
+.pub-inq .pub-inq-submit:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--pub-accent) 36%, transparent);
+}
+
+.pub-inq .pub-inq-submit .pub-cta-arrow {
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.pub-inq .pub-inq-submit .pub-cta-arrow svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pub-inq .pub-inq-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.pub-inq-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 12px;
+  text-align: center;
+  color: var(--pub-muted);
+  font-size: 14px;
+}
+
+.pub-inq-done b {
+  font-size: 17px;
+  color: var(--pub-ink);
+}
+
+.pub-inq-done-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--pub-btn-bg);
+  color: var(--pub-on-accent);
+  margin-bottom: 4px;
 }
 
 /* =========================================================
@@ -790,6 +1163,11 @@ body {
     gap: 8px;
   }
 
+  .pub-back-btn {
+    top: 12px;
+    left: 12px;
+  }
+
   .pub-round-btn {
     width: 40px;
     height: 40px;
@@ -864,6 +1242,47 @@ body {
   .pub-shop-item-media {
     aspect-ratio: 4 / 3;
   }
+
+  /* offers */
+  .pub-offers {
+    gap: 10px;
+  }
+
+  .pub-offer {
+    border-radius: 16px;
+  }
+
+  .pub-offer-body {
+    padding: 10px 10px 2px;
+  }
+
+  .pub-offer-title {
+    font-size: 14px;
+  }
+
+  .pub-offer-desc {
+    font-size: 12.5px;
+  }
+
+  .pub-offer-btn {
+    margin: 8px 10px 10px;
+    padding: 8px 8px;
+    font-size: 12.5px;
+  }
+
+  /* inquiry */
+  .pub-inq {
+    padding: 16px 12px 14px;
+    border-radius: 18px;
+  }
+
+  .pub-inq-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pub-inq-input {
+    font-size: 16px; /* iOS zoom na ho */
+  }
 }
 
 @media (max-width: 360px) {
@@ -895,18 +1314,17 @@ body {
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 45%) minmax(0, 1fr);
-    min-height: 540px;
-    margin-top: 64px; /* card thoda neeche */
+    min-height: 480px;
+    margin-top: 0;
     background: var(--pub-card-solid);
     border: 1px solid var(--pub-line);
     border-radius: 28px;
-    overflow: visible; /* photo thodi bahar nikal sake */
+    overflow: hidden; /* image card se bahar nahi jayegi */
     box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
   }
 
-  /* left: photo */
   .pub-hero .pub-top {
-    position: static; /* share/menu buttons card ke top-right me jayenge */
+    position: static;
     display: flex;
   }
 
@@ -915,27 +1333,25 @@ body {
     aspect-ratio: auto;
     border-radius: 0;
     background: transparent;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .pub-hero .pub-cover::after {
     display: none;
   }
 
-  /* photo card me fit + thodi si upar aur neeche overlap */
   .pub-hero .pub-cover img {
     position: absolute;
-    top: -40px;
-    bottom: -10px;
+    top: 16px;
+    bottom: 0;
     left: 0;
     width: 100%;
-    height: calc(100% + 50px);
+    height: calc(100% - 16px);
     max-height: none;
     object-fit: contain;
     object-position: center bottom;
   }
 
-  /* right: content */
   .pub-hero .pub-card {
     margin: 0;
     padding: 48px 56px 48px 16px;
@@ -971,7 +1387,10 @@ body {
   }
 
   .pub-hero .pub-cta {
-    order: 2;
+    order: 6; /* sabse last */
+    min-height: 52px;
+    font-size: 15.5px;
+    margin-top: 22px;
   }
 
   .pub-hero .pub-tagline {
@@ -991,22 +1410,99 @@ body {
     flex-basis: 44px;
   }
 
-  .pub-hero .pub-cta {
-    min-height: 52px;
-    font-size: 15.5px;
-    margin-top: 18px;
-  }
-
   .pub-hero .pub-bio {
     order: 5;
     margin-top: 14px;
     font-size: 14.5px;
   }
 
-  /* neeche links 2 columns me (screenshot jaisa) */
+  /* links 2 columns */
   .pub-links {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* inquiry: poori width, left info panel | right form */
+  .pub-inq {
+    max-width: none;
+    width: 100%;
+    margin: 36px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 38% minmax(0, 1fr);
+    overflow: hidden;
+    border-radius: 24px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+  }
+
+  .pub-inq-head {
+    margin: 0;
+    padding: 40px 44px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 20px;
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--pub-accent) 16%, var(--pub-card-solid)),
+      color-mix(in srgb, var(--pub-accent) 4%, var(--pub-card-solid))
+    );
+    border-right: 1px solid color-mix(in srgb, var(--pub-accent) 15%, var(--pub-line));
+  }
+
+  .pub-inq-icon {
+    width: 58px;
+    height: 58px;
+    flex-basis: 58px;
+    border-radius: 18px;
+    background: var(--pub-btn-bg);
+    color: var(--pub-on-accent);
+    box-shadow: 0 12px 22px color-mix(in srgb, var(--pub-accent) 32%, transparent);
+  }
+
+  .pub-inq-title {
+    font-size: 32px;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+  }
+
+  .pub-inq-sub {
+    margin-top: 10px;
+    font-size: 15.5px;
+    line-height: 1.55;
+  }
+
+  .pub-inq-form,
+  .pub-inq-done {
+    padding: 40px 44px;
+    gap: 14px;
+    justify-content: center;
+  }
+
+  .pub-inq-input {
+    height: 52px;
+    border-radius: 14px;
+    font-size: 15.5px;
+  }
+
+  .pub-inq-textarea {
+    min-height: 130px;
+  }
+
+  /* button poori width, ab khali jagah nahi bachegi */
+  .pub-inq .pub-inq-submit {
+    width: 100%;
+    min-height: 54px;
+    height: 54px;
+    margin-top: 6px;
+    border-radius: 14px;
+    font-size: 16px;
+  }
+
+  .pub-inq .pub-inq-submit .pub-cta-arrow {
+    right: 12px;
+    width: 34px;
+    height: 34px;
   }
 
   .pub-nav {
@@ -1040,7 +1536,51 @@ body {
 .pub-contact-item:focus-visible,
 .pub-nav-item:focus-visible,
 .pub-round-btn:focus-visible,
+.pub-back-btn:focus-visible,
 .pub-viewall:focus-visible {
   outline: 2px solid var(--pub-accent);
   outline-offset: 3px;
+}
+
+/* =========================================================
+   OFFER CARDS: chhote fixed-width cards (tablet + desktop)
+   Image poori dikhegi (natural ratio), koi crop / gap nahi
+========================================================= */
+
+@media (min-width: 600px) {
+  .pub-offers {
+    grid-template-columns: repeat(auto-fill, 220px);
+    justify-content: start;
+    gap: 16px;
+  }
+
+  .pub-offer {
+    border-radius: 16px;
+  }
+
+  .pub-offer-body {
+    padding: 10px 12px 2px;
+  }
+
+  .pub-offer-title {
+    font-size: 14px;
+  }
+
+  .pub-offer-desc {
+    font-size: 12.5px;
+  }
+
+  .pub-offer-price {
+    font-size: 13px;
+  }
+
+  .pub-offer-btn {
+    margin: 8px 12px 12px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+  }
+
+  .pub-offer-body:last-child {
+    padding-bottom: 12px;
+  }
 }

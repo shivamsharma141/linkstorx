@@ -149,8 +149,6 @@ function ProductCard({ product, seller, accent, preview = false }) {
     price,
     compareAtPrice: mrp,
     currency = "INR",
-    deliveryType = "free",
-    deliveryCharge = 0,
     inStock = true,
     isDraft = false,
   } = product;
@@ -262,12 +260,6 @@ function ProductCard({ product, seller, accent, preview = false }) {
           {mrp && mrp > price && <span className="ls-price-was">{money(mrp, currency)}</span>}
           {discount && <span className="ls-price-off">{discount}% off</span>}
         </div>
-
-        <p className={deliveryType === "paid" ? "ls-delivery-note" : "ls-delivery-note ls-delivery-free"}>
-          {deliveryType === "paid" && deliveryCharge > 0
-            ? `+ ${money(deliveryCharge, currency)} delivery`
-            : "Free delivery"}
-        </p>
 
         <div className="ls-product-card-actions">
           <button
@@ -536,6 +528,24 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
     );
   }
 
+  /* Verified seller, lekin abhi koi published product nahi => store band.
+     Editor preview (previewMode) ko ye nahi dikhta, wahan draft product merge hota hai. */
+  if (store.products.length === 0 && !previewMode) {
+    return (
+      <div className="ls-store-page" style={themeVars}>
+        <div className="ls-store-pending">
+          <h2 className="ls-store-pending-title">Store opening soon</h2>
+          <p className="ls-store-pending-text">
+            This store has no products yet. Please check back later.
+          </p>
+          <Link href={`/${seller.username}`} className="ls-btn ls-btn-primary">
+            Back to profile
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="ls-store-page"
@@ -581,17 +591,28 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
         </div>
       </header>
 
-      {/* HERO BANNER */}
+      {/* UNIVERSAL STORE HERO */}
       <section className="ls-store-hero">
+        <img
+          src="/store-hero-bg.png"
+          alt="Store banner"
+          className="ls-store-hero-image"
+        />
+
+        <div className="ls-store-hero-overlay" />
+
         <div className="ls-store-hero-content">
-          <p className="ls-store-hero-eyebrow">Welcome to my store</p>
-          <h2 className="ls-store-hero-title">Shop from {sellerName}&apos;s Store</h2>
-          <p className="ls-store-hero-subtitle">Curated products, collections and recommendations.</p>
-          <div className="ls-store-hero-stats">
-            <span><Ico d={ICO.bag} size={14} /> {products.length} Products</span>
-            <span className="ls-dot" />
-            <span><Ico d={ICO.tag} size={14} /> {categoryCount} Categories</span>
-          </div>
+          <p className="ls-store-hero-eyebrow">
+            Welcome to my store
+          </p>
+
+          <h2 className="ls-store-hero-title">
+            Shop from <span>{sellerName}&apos;s</span> Store
+          </h2>
+
+          <p className="ls-store-hero-subtitle">
+            Discover products, collections and everyday finds — all in one place.
+          </p>
         </div>
       </section>
 
@@ -601,7 +622,7 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
           <input
             className="ls-store-search"
             type="search"
-            placeholder="Search products, tags, categories..."
+            placeholder="Search products, categories, brands..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoComplete="off"
@@ -661,7 +682,7 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
                 <div>
                   <h2 className="ls-store-section-title">Featured Products</h2>
                   <p className="ls-store-section-subtitle">
-                    Handpicked products from {sellerName}&apos;s store.
+                    Popular picks from this store.
                   </p>
                 </div>
                 <div className="ls-carousel-nav">
@@ -686,7 +707,7 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
               <div>
                 <h2 className="ls-store-section-title">All Products</h2>
                 <p className="ls-store-section-subtitle">
-                  Explore all products from {sellerName}&apos;s store.
+                  Browse the complete collection.
                 </p>
               </div>
               <div className="ls-store-section-tools">

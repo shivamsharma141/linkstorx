@@ -5,6 +5,47 @@ import Link from "next/link";
 
 import { getTheme, buildThemeVars } from "@/app/lib/theme/profileThemes";
 
+/* =========================================================
+   ANALYTICS TRACKING
+   Visit + tap events /api/analytics/track par jaate hain.
+   Fail hone par page par koi asar nahi padta.
+========================================================= */
+
+function getVisitorId() {
+  try {
+    let id = localStorage.getItem("ls_vid");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("ls_vid", id);
+    }
+    return id;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+function track(payload) {
+  try {
+    const body = JSON.stringify({ ...payload, visitorId: getVisitorId() });
+
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(
+        "/api/analytics/track",
+        new Blob([body], { type: "application/json" })
+      );
+    } else {
+      fetch("/api/analytics/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true,
+      });
+    }
+  } catch {
+    /* tracking kabhi page ko nahi todega */
+  }
+}
+
 const SOCIAL_META = {
   instagram: { label: "Instagram", color: "#D62976" },
   youtube: { label: "YouTube", color: "#FF0000" },
@@ -33,6 +74,7 @@ const LINK_META = {
 };
 
 const LINKS_PREVIEW_COUNT = 5;
+const OFFERS_PREVIEW_COUNT = 4;
 
 const SOCIAL_PATHS = {
   youtube:
@@ -67,6 +109,9 @@ const ICONS = {
   arrow: "M5 12h14|M12 5l7 7-7 7",
   chevron: "M9 18l6-6-6-6",
   copy: "M9 9h11v11H9z|M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1",
+  gift: "M20 12v10H4V12|M2 7h20v5H2z|M12 22V7|M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z|M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z",
+  check: "M20 6L9 17l-5-5",
+  back: "M19 12H5|M12 19l-7-7 7-7",
 };
 
 function Ico({ name, size = 18, stroke = 2 }) {
@@ -236,6 +281,24 @@ function getProductDescription(product) {
   );
 }
 
+/* Offer card click: link (url / whatsapp), form (scroll + preselect), ya none */
+function getOfferTarget(offer, formOn) {
+  if (offer.action === "url" && /^https?:\/\/\S+$/i.test(offer.actionValue || "")) {
+    return { kind: "link", href: offer.actionValue };
+  }
+
+  if (offer.action === "whatsapp" && /^\d{7,15}$/.test(offer.actionValue || "")) {
+    const text = encodeURIComponent(`Hi, I'm interested in ${offer.title}`);
+    return { kind: "link", href: `https://wa.me/${offer.actionValue}?text=${text}` };
+  }
+
+  if (offer.action === "form" && formOn) {
+    return { kind: "form" };
+  }
+
+  return { kind: "none" };
+}
+
 const TABS = [
   { key: "links", label: "Links", icon: "link" },
   { key: "shop", label: "Shop", icon: "bag" },
@@ -243,23 +306,202 @@ const TABS = [
   { key: "contact", label: "Contact", icon: "mail" },
 ];
 
+/* ---------- inquiry form ("Let's Work Together") ---------- */
+function InquiryForm({ inquiry, offers, username, selected, onSelect, formRef }) {
+  const [name, setName] = useState("");
+  const [contact, setContact] = useState("");
+  const [message, setMessage] = useState("");
+  const [honey, setHoney] = useState(""); // bots bharte hain, humans ko dikhta nahi
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+  const [error, setError] = useState("");
+
+  async function submit(e) {
+    e.preventDefault();
+    if (status === "sending") return;
+
+    setStatus("sending");
+    setError("");
+
+    try {
+      const response = await fetch("/api/inquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username,
+          name,
+          contact,
+          offering: selected,
+          message,
+          website: honey,
+        }),
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        /* non-JSON */
+      }
+
+      if (!response.ok || !data?.success) {
+        setError(data?.message || "Could not send your message. Please try again.");
+        setStatus("error");
+        return;
+      }
+
+      setName("");
+      setContact("");
+      setMessage("");
+      onSelect("");
+      setStatus("sent");
+    } catch {
+      setError("Could not send your message. Check your connection.");
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="pub-inq" ref={formRef} id="pub-inquiry">
+      <div className="pub-inq-head">
+        <span className="pub-inq-icon">
+          <Ico name="mail" size={22} />
+        </span>
+        <div>
+          <h2 className="pub-inq-title">{inquiry.title}</h2>
+          {inquiry.subtitle && <p className="pub-inq-sub">{inquiry.subtitle}</p>}
+        </div>
+      </div>
+
+      {status === "sent" ? (
+        <div className="pub-inq-done" role="status">
+          <span className="pub-inq-done-icon">
+            <Ico name="check" size={22} />
+          </span>
+          <b>Message sent</b>
+          <span>Thanks for reaching out. I'll get back to you soon.</span>
+        </div>
+      ) : (
+        <form className="pub-inq-form" onSubmit={submit}>
+          <div className="pub-inq-row">
+            <input
+              className="pub-inq-input"
+              type="text"
+              value={name}
+              maxLength={80}
+              required
+              placeholder="Your name"
+              autoComplete="name"
+              onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              className="pub-inq-input"
+              type="text"
+              value={contact}
+              maxLength={120}
+              required
+              placeholder="Email or WhatsApp"
+              autoComplete="email"
+              onChange={(e) => setContact(e.target.value)}
+            />
+          </div>
+
+          <select
+            className="pub-inq-input pub-inq-select"
+            value={selected}
+            onChange={(e) => onSelect(e.target.value)}
+            aria-label="What you need"
+          >
+            <option value="">Select what you need</option>
+            {offers.map((offer) => (
+              <option key={offer.id} value={offer.title}>
+                {offer.title}
+              </option>
+            ))}
+            <option value="Other">Other</option>
+          </select>
+
+          <textarea
+            className="pub-inq-input pub-inq-textarea"
+            rows={3}
+            value={message}
+            maxLength={1000}
+            placeholder="Tell me more about your requirement..."
+            onChange={(e) => setMessage(e.target.value)}
+          />
+
+          {/* honeypot */}
+          <input
+            type="text"
+            name="website"
+            value={honey}
+            onChange={(e) => setHoney(e.target.value)}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            className="pub-inq-hp"
+          />
+
+          {error && (
+            <p className="pub-inq-error" role="alert">
+              {error}
+            </p>
+          )}
+
+          <button type="submit" className="pub-cta pub-inq-submit" disabled={status === "sending"}>
+            <span className="pub-cta-label">
+              {status === "sending" ? "Sending…" : "Send Message"}
+            </span>
+            <span className="pub-cta-arrow">
+              <Ico name="arrow" size={20} />
+            </span>
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 export default function PublicProfileView({ profile, storeProducts = [] }) {
   const [activeSection, setActiveSection] = useState("links");
   const [showAllLinks, setShowAllLinks] = useState(false);
+  const [showAllOffers, setShowAllOffers] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState("");
 
   const menuRef = useRef(null);
   const toastTimer = useRef(null);
+  const formRef = useRef(null);
+
+  /* ---------- analytics ---------- */
+  const visitSent = useRef(false);
+
+  useEffect(() => {
+    if (visitSent.current) return; // dev (StrictMode) me double-fire na ho
+    visitSent.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+
+    track({
+      username: profile.username,
+      type: "visit",
+      referrer: document.referrer,
+      ref: params.get("ref") || params.get("utm_source") || "",
+    });
+  }, [profile.username]);
+
+  const trackTap = (id, title, kind) =>
+    track({
+      username: profile.username,
+      type: "tap",
+      linkId: String(id),
+      linkTitle: title,
+      linkKind: kind,
+    });
 
   const visibleSocials =
     profile.socialIcons?.filter(
       (social) => social.enabled && social.url && social.url.trim() !== ""
-    ) || [];
-
-  const visibleButtons =
-    profile.primaryButtons?.filter(
-      (button) => button.enabled && button.label && button.label.trim() !== ""
     ) || [];
 
   const visibleLinks =
@@ -271,13 +513,35 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
     ? visibleLinks
     : visibleLinks.slice(0, LINKS_PREVIEW_COUNT);
 
+  /* What I Offer + Inquiry (server pehle hi filter karke bhejta hai) */
+  const offers = profile.offers || { enabled: false, items: [] };
+  const inquiry = profile.inquiry || { enabled: false };
+
+  const visibleOffers = offers.enabled
+    ? (offers.items || []).filter((o) => o.enabled && o.title?.trim())
+    : [];
+
+  const shownOffers = showAllOffers
+    ? visibleOffers
+    : visibleOffers.slice(0, OFFERS_PREVIEW_COUNT);
+
+  const formOn = Boolean(inquiry.enabled);
+
   const theme = getTheme(profile.theme);
   const themeVars = buildThemeVars(theme);
 
   const name = profile.displayName || profile.username;
   const storeHref = `/${profile.username}/store`;
 
+  /* Store tabhi dikhega jab kam se kam 1 published product ho.
+     storeProducts server se aata hai (sirf verified seller ke published products). */
+  const hasStore = Array.isArray(storeProducts) && storeProducts.length > 0;
+  const visibleTabs = TABS.filter((tab) => tab.key !== "shop" || hasStore);
+
   const tags = profile.categoryTags || [];
+
+  /* Back button hamesha home page par bhejta hai */
+  const HOME_HREF = "/";
 
   /* Paint <body> too, so no other background shows around the page */
   useEffect(() => {
@@ -351,6 +615,83 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
     copyLink();
   }
 
+  /* Card click -> form khulta hai: offering pre-select + scroll */
+  function openFormFor(title) {
+    setSelectedOffer(title);
+
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
+  function renderOffer(offer) {
+    const target = getOfferTarget(offer, formOn);
+
+    const inner = (
+      <>
+        <span className="pub-offer-media">
+          {offer.image ? (
+            <img src={offer.image} alt={offer.title} loading="lazy" />
+          ) : (
+            <span className="pub-offer-media-empty">
+              <Ico name="gift" size={26} />
+            </span>
+          )}
+        </span>
+
+        <span className="pub-offer-body">
+          <span className="pub-offer-title">{offer.title}</span>
+          {offer.description && <span className="pub-offer-desc">{offer.description}</span>}
+          {offer.price && <span className="pub-offer-price">{offer.price}</span>}
+        </span>
+
+        {offer.buttonText && (
+          <span className="pub-offer-btn">
+            {offer.buttonText}
+            <Ico name="arrow" size={15} />
+          </span>
+        )}
+      </>
+    );
+
+    if (target.kind === "link") {
+      return (
+        <a
+          key={offer.id}
+          href={target.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="pub-offer"
+          onClick={() => trackTap(offer.id, offer.title, "offer")}
+        >
+          {inner}
+        </a>
+      );
+    }
+
+    if (target.kind === "form") {
+      return (
+        <button
+          key={offer.id}
+          type="button"
+          className="pub-offer"
+          onClick={() => {
+            trackTap(offer.id, offer.title, "offer");
+            openFormFor(offer.title);
+          }}
+        >
+          {inner}
+        </button>
+      );
+    }
+
+    return (
+      <div key={offer.id} className="pub-offer pub-offer-static">
+        {inner}
+      </div>
+    );
+  }
+
   return (
     <div className="pub-page" style={themeVars}>
       <div className="pub-wrap">
@@ -358,6 +699,14 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
         <div className="pub-hero">
           {/* ================= COVER ================= */}
           <div className="pub-top">
+            <Link
+              href={HOME_HREF}
+              className="pub-round-btn pub-back-btn"
+              aria-label="Go to home page"
+            >
+              <Ico name="back" size={19} />
+            </Link>
+
             <div className="pub-cover">
               {profile.profileImage ? (
                 <img src={profile.profileImage} alt={name} />
@@ -396,10 +745,21 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
                     <Ico name="copy" size={16} />
                     Copy link
                   </button>
-                  <Link href={storeHref} role="menuitem" onClick={() => setMenuOpen(false)}>
-                    <Ico name="store" size={16} />
-                    Visit store
-                  </Link>
+
+                  {/* Visit store: sirf jab store mein product ho */}
+                  {hasStore && (
+                    <Link
+                      href={storeHref}
+                      role="menuitem"
+                      onClick={() => {
+                        trackTap("store", "Visit My Store", "store");
+                        setMenuOpen(false);
+                      }}
+                    >
+                      <Ico name="store" size={16} />
+                      Visit store
+                    </Link>
+                  )}
                 </div>
               )}
             </div>
@@ -440,6 +800,13 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
                     className="pub-social"
                     title={SOCIAL_META[social.platform]?.label || social.platform}
                     style={{ color: SOCIAL_META[social.platform]?.color || "#333" }}
+                    onClick={() =>
+                      trackTap(
+                        social.platform,
+                        SOCIAL_META[social.platform]?.label || social.platform,
+                        "social"
+                      )
+                    }
                   >
                     <SocialIcon platform={social.platform} size={24} />
                   </a>
@@ -447,50 +814,28 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
               </div>
             )}
 
-            <Link href={storeHref} className="pub-cta">
-              <span className="pub-cta-label">
-                <Ico name="store" size={24} stroke={1.8} />
-                Visit My Store
-              </span>
-              <span className="pub-cta-arrow">
-                <Ico name="arrow" size={22} />
-              </span>
-            </Link>
-
-            {visibleButtons.map((button) => {
-              const href = normalizeUrl(button.url);
-
-              const inner = (
-                <>
-                  <span className="pub-cta-label">{button.label}</span>
-                  <span className="pub-cta-arrow">
-                    <Ico name="arrow" size={22} />
-                  </span>
-                </>
-              );
-
-              return href ? (
-                <a
-                  key={button.id}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="pub-cta"
-                >
-                  {inner}
-                </a>
-              ) : (
-                <div key={button.id} className="pub-cta">
-                  {inner}
-                </div>
-              );
-            })}
+            {/* Visit My Store: sirf jab store mein product ho */}
+            {hasStore && (
+              <Link
+                href={storeHref}
+                className="pub-cta"
+                onClick={() => trackTap("store", "Visit My Store", "store")}
+              >
+                <span className="pub-cta-label">
+                  <Ico name="store" size={24} stroke={1.8} />
+                  Visit My Store
+                </span>
+                <span className="pub-cta-arrow">
+                  <Ico name="arrow" size={22} />
+                </span>
+              </Link>
+            )}
           </section>
         </div>
 
         {/* ================= TABS ================= */}
         <nav className="pub-nav">
-          {TABS.map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
@@ -511,6 +856,32 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
         <div className="pub-section">
           {activeSection === "links" && (
             <>
+              {/* ---------- WHAT I OFFER ---------- */}
+              {visibleOffers.length > 0 && (
+                <div className="pub-block">
+                  <div className="pub-section-head">
+                    <div className="pub-section-headtext">
+                      <h2 className="pub-section-title">{offers.title}</h2>
+                      {offers.subtitle && <p className="pub-section-sub">{offers.subtitle}</p>}
+                    </div>
+
+                    {visibleOffers.length > OFFERS_PREVIEW_COUNT && (
+                      <button
+                        type="button"
+                        className="pub-viewall"
+                        onClick={() => setShowAllOffers((v) => !v)}
+                      >
+                        {showAllOffers ? "Show less" : "View All"}
+                        {!showAllOffers && <Ico name="arrow" size={16} />}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="pub-offers">{shownOffers.map(renderOffer)}</div>
+                </div>
+              )}
+
+              {/* ---------- MY LINKS ---------- */}
               <div className="pub-section-head">
                 <h2 className="pub-section-title">My Links</h2>
 
@@ -542,6 +913,7 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
                         rel="noopener noreferrer"
                         className="pub-link"
                         style={{ "--lk": meta?.tint || "#94a3b8" }}
+                        onClick={() => trackTap(link.id, link.title, "link")}
                       >
                         <LinkBadge icon={link.icon} />
 
@@ -558,53 +930,66 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
                   })}
                 </div>
               )}
+
+              {/* ---------- INQUIRY FORM ---------- */}
+              {formOn && (
+                <InquiryForm
+                  inquiry={inquiry}
+                  offers={visibleOffers}
+                  username={profile.username}
+                  selected={selectedOffer}
+                  onSelect={setSelectedOffer}
+                  formRef={formRef}
+                />
+              )}
             </>
           )}
 
-          {activeSection === "shop" && (
+          {activeSection === "shop" && hasStore && (
             <>
               <div className="pub-section-head">
                 <h2 className="pub-section-title">Shop</h2>
               </div>
 
-              {storeProducts.length === 0 ? (
-                <p className="pub-empty">No products yet.</p>
-              ) : (
-                <div className="pub-shop-grid">
-                  {storeProducts.slice(0, 8).map((product) => {
-                    const imgSrc = getProductImage(product);
-                    const description = getProductDescription(product);
+              <div className="pub-shop-grid">
+                {storeProducts.slice(0, 8).map((product) => {
+                  const imgSrc = getProductImage(product);
+                  const description = getProductDescription(product);
 
-                    return (
-                      <Link key={product.id} href={storeHref} className="pub-shop-item">
-                        <div className="pub-shop-item-media">
-                          {imgSrc ? (
-                            <img src={imgSrc} alt={product.name} />
-                          ) : (
-                            <div className="pub-shop-item-placeholder" />
+                  return (
+                    <Link
+                      key={product.id}
+                      href={storeHref}
+                      className="pub-shop-item"
+                      onClick={() => trackTap(product.id, product.name, "store")}
+                    >
+                      <div className="pub-shop-item-media">
+                        {imgSrc ? (
+                          <img src={imgSrc} alt={product.name} />
+                        ) : (
+                          <div className="pub-shop-item-placeholder" />
+                        )}
+                      </div>
+
+                      <div className="pub-shop-item-body">
+                        <span className="pub-shop-item-name">{product.name}</span>
+
+                        {description && (
+                          <span className="pub-shop-item-desc">{description}</span>
+                        )}
+
+                        <div className="pub-shop-item-footer">
+                          {product.price != null && (
+                            <span className="pub-shop-item-price">₹{product.price}</span>
                           )}
+
+                          <span className="pub-shop-buy-btn">Buy Now</span>
                         </div>
-
-                        <div className="pub-shop-item-body">
-                          <span className="pub-shop-item-name">{product.name}</span>
-
-                          {description && (
-                            <span className="pub-shop-item-desc">{description}</span>
-                          )}
-
-                          <div className="pub-shop-item-footer">
-                            {product.price != null && (
-                              <span className="pub-shop-item-price">₹{product.price}</span>
-                            )}
-
-                            <span className="pub-shop-buy-btn">Buy Now</span>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             </>
           )}
 
@@ -632,6 +1017,13 @@ export default function PublicProfileView({ profile, storeProducts = [] }) {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="pub-contact-item"
+                      onClick={() =>
+                        trackTap(
+                          social.platform,
+                          SOCIAL_META[social.platform]?.label || social.platform,
+                          "social"
+                        )
+                      }
                     >
                       <span style={{ color: SOCIAL_META[social.platform]?.color }}>
                         <SocialIcon platform={social.platform} size={22} />

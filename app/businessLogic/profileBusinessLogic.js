@@ -37,6 +37,19 @@ const MAX_BIO_CHARS = 500;
 
 const MAX_SUBTITLE_CHARS = 60;
 
+/* What I Offer */
+const MAX_OFFERS = 5;
+const MAX_OFFER_TITLE = 60;
+const MAX_OFFER_DESC = 100;
+const MAX_OFFER_BUTTON = 24;
+const MAX_OFFER_PRICE = 40;
+const OFFER_ACTIONS = ["form", "url", "whatsapp"];
+
+const DEFAULT_OFFERS_TITLE = "What I Offer";
+const DEFAULT_OFFERS_SUBTITLE = "Explore what I do and how I can help you.";
+const DEFAULT_INQUIRY_TITLE = "Let's Work Together";
+const DEFAULT_INQUIRY_SUBTITLE = "Tell me what you need. I'll get back to you.";
+
 /* =========================================================
    ERROR HELPER
 ========================================================= */
@@ -97,22 +110,48 @@ function mapLink(item) {
   };
 }
 
-function mapButton(item) {
-  return {
-    id: item._id.toString(),
-    label: item.label,
-    url: item.url,
-    enabled: item.enabled,
-    position: item.position,
-  };
-}
-
 function mapSocialIcon(item) {
   return {
     id: item._id.toString(),
     platform: item.platform,
     url: item.url,
     enabled: item.enabled,
+  };
+}
+
+function mapOffer(item) {
+  return {
+    id: item._id.toString(),
+    title: item.title || "",
+    description: item.description || "",
+    image: item.image || "",
+    buttonText: item.buttonText || "",
+    price: item.price || "",
+    action: item.action || "form",
+    actionValue: item.actionValue || "",
+    enabled: item.enabled,
+    position: item.position,
+  };
+}
+
+/* =========================================================
+   OFFERS / INQUIRY DEFAULTS
+========================================================= */
+
+function defaultOffers() {
+  return {
+    enabled: false,
+    title: DEFAULT_OFFERS_TITLE,
+    subtitle: DEFAULT_OFFERS_SUBTITLE,
+    items: [],
+  };
+}
+
+function defaultInquiry() {
+  return {
+    enabled: false,
+    title: DEFAULT_INQUIRY_TITLE,
+    subtitle: DEFAULT_INQUIRY_SUBTITLE,
   };
 }
 
@@ -131,6 +170,17 @@ function toPlainProfile(profile, { publicOnly = false } = {}) {
 
   const theme = getTheme(profile.theme);
 
+  const offersOn = Boolean(profile.offers?.enabled);
+
+  /* Public: section off hai ya title khali hai toh card nahi jayega */
+  let offerItems = (profile.offers?.items || []).map(mapOffer);
+
+  if (publicOnly) {
+    offerItems = offersOn
+      ? offerItems.filter((item) => item.enabled && item.title.trim() !== "")
+      : [];
+  }
+
   return {
     username: profile.publicUsername,
     displayName: profile.displayName,
@@ -140,13 +190,22 @@ function toPlainProfile(profile, { publicOnly = false } = {}) {
 
     categoryTags: profile.categoryTags || [],
 
-    primaryButtons: sortByPosition(
-      filterEnabled((profile.primaryButtons || []).map(mapButton))
-    ),
-
     links: sortByPosition(filterEnabled((profile.links || []).map(mapLink))),
 
     socialIcons: filterEnabled((profile.socialIcons || []).map(mapSocialIcon)),
+
+    offers: {
+      enabled: offersOn,
+      title: profile.offers?.title || DEFAULT_OFFERS_TITLE,
+      subtitle: profile.offers?.subtitle ?? DEFAULT_OFFERS_SUBTITLE,
+      items: sortByPosition(offerItems),
+    },
+
+    inquiry: {
+      enabled: Boolean(profile.inquiry?.enabled),
+      title: profile.inquiry?.title || DEFAULT_INQUIRY_TITLE,
+      subtitle: profile.inquiry?.subtitle ?? DEFAULT_INQUIRY_SUBTITLE,
+    },
 
     theme: {
       themeId: theme.id,
@@ -212,12 +271,12 @@ function validateBio(bio) {
 }
 
 /*
- * Profile photo:
+ * Image (profile photo ya offer card image):
  *  - khali ho sakti hai
  *  - https URL honi chahiye
- *  - wahi image jo pehle se saved hai, ya is user ki apni uploaded image
+ *  - ya toh pehle se saved image (allowed list), ya is user ki apni uploaded image
  */
-function validateOwnedImage(url, userId, currentImage, label = "image") {
+function validateOwnedImage(url, userId, allowedImages, label = "image") {
   if (!url) return "";
 
   const normalized = String(url).trim();
@@ -227,13 +286,23 @@ function validateOwnedImage(url, userId, currentImage, label = "image") {
   }
 
   if (
-    normalized !== (currentImage || "") &&
+    !allowedImages.includes(normalized) &&
     !isProfileImageOwnedBy(normalized, userId)
   ) {
     throw createAppError(`Invalid ${label}.`, 400);
   }
 
   return normalized;
+}
+
+/* Profile photo + saari offer images (cleanup aur validation dono ke liye) */
+function collectImages(profile) {
+  const list = [
+    profile?.profileImage,
+    ...(profile?.offers?.items || []).map((item) => item.image),
+  ].filter(Boolean);
+
+  return [...new Set(list)];
 }
 
 function validateCategoryTags(tags) {
@@ -281,33 +350,6 @@ function validateLinks(links) {
   });
 }
 
-/* Buttons may have an empty URL (destination can be added later). */
-function validatePrimaryButtons(buttons) {
-  if (!Array.isArray(buttons)) return [];
-
-  const filled = buttons.filter(
-    (button) =>
-      String(button?.label || "").trim() !== "" ||
-      String(button?.url || "").trim() !== ""
-  );
-
-  return filled.map((button, index) => {
-    const label = String(button?.label || "").trim();
-    const url = normalizeUrl(button?.url);
-
-    if (!label) {
-      throw createAppError("Each button needs a label.", 400);
-    }
-
-    return {
-      label,
-      url,
-      enabled: button?.enabled === undefined ? true : Boolean(button.enabled),
-      position: typeof button?.position === "number" ? button.position : index,
-    };
-  });
-}
-
 function validateSocialIcons(icons) {
   if (!Array.isArray(icons)) return [];
 
@@ -322,6 +364,97 @@ function validateSocialIcons(icons) {
         enabled: Boolean(icon?.enabled) && Boolean(url),
       };
     });
+}
+
+/*
+ * Offer cards.
+ * Autosave beech me fail na ho isliye yahan zyada strict nahi hain:
+ *  - bilkul khali card ignore hota hai
+ *  - galat URL / number ho toh actionValue khali ho jata hai
+ *    (public page par aisa card clickable nahi hota)
+ * Sirf 5 se zyada cards error hain.
+ */
+function validateOfferAction(action, rawValue) {
+  const type = OFFER_ACTIONS.includes(action) ? action : "form";
+  const raw = String(rawValue || "").trim();
+
+  if (type === "url") {
+    const url = normalizeUrl(raw);
+    return {
+      action: type,
+      actionValue: /^https?:\/\/[^\s]+$/i.test(url) ? url.slice(0, 500) : "",
+    };
+  }
+
+  if (type === "whatsapp") {
+    const digits = raw.replace(/\D/g, "");
+    return {
+      action: type,
+      actionValue: /^\d{7,15}$/.test(digits) ? digits : "",
+    };
+  }
+
+  return { action: "form", actionValue: "" };
+}
+
+function validateOffers(offers, userId, allowedImages) {
+  const source = offers && typeof offers === "object" ? offers : {};
+  const rows = Array.isArray(source.items) ? source.items : [];
+
+  /* Saare cards rakhte hain (khali title wala bhi), taaki refresh par card gayab na ho.
+     Public page par khali title wala card server hi hide kar deta hai. */
+  const filled = rows.filter((item) => item && typeof item === "object");
+
+  if (filled.length > MAX_OFFERS) {
+    throw createAppError(`You can add up to ${MAX_OFFERS} offer cards.`, 400);
+  }
+
+  const items = filled.map((item, index) => {
+    const { action, actionValue } = validateOfferAction(
+      item?.action,
+      item?.actionValue
+    );
+
+    return {
+      title: String(item?.title || "").trim().slice(0, MAX_OFFER_TITLE),
+      description: String(item?.description || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, MAX_OFFER_DESC),
+      image: validateOwnedImage(item?.image, userId, allowedImages, "offer image"),
+      buttonText:
+        String(item?.buttonText || "").trim().slice(0, MAX_OFFER_BUTTON) ||
+        "Learn more",
+      price: String(item?.price || "").trim().slice(0, MAX_OFFER_PRICE),
+      action,
+      actionValue,
+      enabled: item?.enabled === undefined ? true : Boolean(item.enabled),
+      position: typeof item?.position === "number" ? item.position : index,
+    };
+  });
+
+  return {
+    enabled: Boolean(source.enabled),
+    title:
+      String(source.title || "").trim().slice(0, 40) || DEFAULT_OFFERS_TITLE,
+    subtitle: String(source.subtitle ?? DEFAULT_OFFERS_SUBTITLE)
+      .trim()
+      .slice(0, 100),
+    items,
+  };
+}
+
+function validateInquiry(inquiry) {
+  const source = inquiry && typeof inquiry === "object" ? inquiry : {};
+
+  return {
+    enabled: Boolean(source.enabled),
+    title:
+      String(source.title || "").trim().slice(0, 60) || DEFAULT_INQUIRY_TITLE,
+    subtitle: String(source.subtitle ?? DEFAULT_INQUIRY_SUBTITLE)
+      .trim()
+      .slice(0, 120),
+  };
 }
 
 /* Client sirf themeId bhejta hai. Colors server khud nikalta hai. */
@@ -355,7 +488,6 @@ export async function getProfileForDashboard(userId, accountUsername) {
       profileImage: "",
       verifiedBadge: false,
       categoryTags: [],
-      primaryButtons: [],
       links: [],
       socialIcons: SOCIAL_PLATFORMS.map((platform) => ({
         id: null,
@@ -363,6 +495,8 @@ export async function getProfileForDashboard(userId, accountUsername) {
         url: "",
         enabled: false,
       })),
+      offers: defaultOffers(),
+      inquiry: defaultInquiry(),
       theme: {
         themeId: defaultTheme.id,
         accentColor: defaultTheme.accent,
@@ -471,7 +605,7 @@ export async function saveProfile(userId, data) {
   }
 
   const existingProfile = await findProfileByUserId(userId);
-  const oldProfileImage = existingProfile?.profileImage || "";
+  const oldImages = collectImages(existingProfile);
 
   const payload = {
     userId,
@@ -482,7 +616,7 @@ export async function saveProfile(userId, data) {
     profileImage: validateOwnedImage(
       data.profileImage,
       userId,
-      oldProfileImage,
+      oldImages,
       "profile image"
     ),
 
@@ -490,9 +624,10 @@ export async function saveProfile(userId, data) {
       Boolean(data.verifiedBadge) && (await canUseVerifiedBadge(userId)),
 
     categoryTags: validateCategoryTags(data.categoryTags),
-    primaryButtons: validatePrimaryButtons(data.primaryButtons),
     links: validateLinks(data.links),
     socialIcons: validateSocialIcons(data.socialIcons),
+    offers: validateOffers(data.offers, userId, oldImages),
+    inquiry: validateInquiry(data.inquiry),
     theme: validateTheme(data.theme),
   };
 
@@ -508,8 +643,12 @@ export async function saveProfile(userId, data) {
     throw createAppError("Unable to save profile.", 500);
   }
 
-  if (oldProfileImage && oldProfileImage !== payload.profileImage) {
-    await deleteProfileImage(oldProfileImage, userId);
+  /* Jo images ab use nahi ho rahi (profile photo ya offer image), Cloudinary se hata do */
+  const newImages = collectImages(profile);
+  const staleImages = oldImages.filter((url) => !newImages.includes(url));
+
+  if (staleImages.length > 0) {
+    await Promise.all(staleImages.map((url) => deleteProfileImage(url, userId)));
   }
 
   return {

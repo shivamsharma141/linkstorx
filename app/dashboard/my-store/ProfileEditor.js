@@ -25,6 +25,31 @@ const MAX_BIO_WORDS = 50;
 const MAX_BIO_CHARS = 500; // safety net, words limit pehle hit hoti hai
 const MAX_SUBTITLE_CHARS = 60;
 
+/* What I Offer */
+const MAX_OFFERS = 5;
+const MAX_OFFER_TITLE = 60;
+const MAX_OFFER_DESC = 100; // ~2 lines
+const MAX_OFFER_BUTTON = 24;
+
+const OFFER_ACTIONS = [
+  { value: "form", label: "Open inquiry form (offering pre-selected)" },
+  { value: "url", label: "Open external link" },
+  { value: "whatsapp", label: "Open WhatsApp chat" },
+];
+
+const DEFAULT_OFFERS = {
+  enabled: false,
+  title: "What I Offer",
+  subtitle: "Explore what I do and how I can help you.",
+  items: [],
+};
+
+const DEFAULT_INQUIRY = {
+  enabled: false,
+  title: "Let's Work Together",
+  subtitle: "Tell me what you need. I'll get back to you.",
+};
+
 function countWords(text) {
   return (String(text || "").match(/\S+/g) || []).length;
 }
@@ -140,6 +165,8 @@ const UI_ICONS = {
   back: "M19 12H5|M12 19l-7-7 7-7",
   lock: "M5 11h14v10H5z|M8 11V7a4 4 0 018 0v4",
   badge: "M12 2l2.4 2 3.1-.3 1.1 2.9 2.8 1.4-.8 3 .8 3-2.8 1.4-1.1 2.9-3.1-.3L12 22l-2.4-2-3.1.3-1.1-2.9L2.6 15l.8-3-.8-3 2.8-1.4 1.1-2.9 3.1.3z|M8.5 12l2.5 2.5 4.5-5",
+  gift: "M20 12v10H4V12|M2 7h20v5H2z|M12 22V7|M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z|M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z",
+  mail: "M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z|M22 6l-10 7L2 6",
 };
 
 function Icon({ name, size = 16 }) {
@@ -269,9 +296,19 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     profileImage: initialProfile.profileImage || "",
     verifiedBadge: Boolean(initialProfile.verifiedBadge),
     categoryTags: initialProfile.categoryTags || [],
-    primaryButtons: initialProfile.primaryButtons || [],
     links: (initialProfile.links || []).map((l) => ({ ...l, subtitle: l.subtitle || "" })),
     socialIcons: withDefaultSocialIcons(initialProfile.socialIcons || []),
+    offers: {
+      enabled: Boolean(initialProfile.offers?.enabled),
+      title: initialProfile.offers?.title ?? DEFAULT_OFFERS.title,
+      subtitle: initialProfile.offers?.subtitle ?? DEFAULT_OFFERS.subtitle,
+      items: (initialProfile.offers?.items || []).map((o) => ({ ...o })),
+    },
+    inquiry: {
+      enabled: Boolean(initialProfile.inquiry?.enabled),
+      title: initialProfile.inquiry?.title ?? DEFAULT_INQUIRY.title,
+      subtitle: initialProfile.inquiry?.subtitle ?? DEFAULT_INQUIRY.subtitle,
+    },
     theme: { themeId: getTheme(initialProfile.theme).id },
   }));
 
@@ -282,6 +319,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   const [usernameStatus, setUsernameStatus] = useState(initialProfile.exists ? "available" : "idle");
   const [usernameMessage, setUsernameMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [offerUploading, setOfferUploading] = useState(null);
   const [photoOver, setPhotoOver] = useState(false);
   const [copied, setCopied] = useState(false);
   const [baseUrl, setBaseUrl] = useState("");
@@ -305,6 +343,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   const [dragOver, setDragOver] = useState(null);
 
   const saveTimer = useRef(null);
+  const instantRef = useRef(false); // add / delete / toggle par turant save (debounce skip)
   const usernameTimer = useRef(null);
   const isFirstRender = useRef(true);
   const lastCheckedUsername = useRef(initialProfile.username || initialProfile.suggestedUsername || "");
@@ -427,7 +466,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
 
   /* ---------- profile strength ---------- */
   const activeLinks = profile.links.filter((l) => l.enabled && l.url.trim()).length;
-  const activeButtons = profile.primaryButtons.filter((b) => b.enabled && b.url.trim()).length;
   const activeSocials = profile.socialIcons.filter((s) => s.enabled && s.url.trim()).length;
 
   const bioWords = countWords(profile.bio);
@@ -439,7 +477,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     { key: "name", label: "Add your display name", done: Boolean(profile.displayName.trim()), tab: "profile" },
     { key: "bio", label: "Write a short bio", done: profile.bio.trim().length >= 20, tab: "profile" },
     { key: "tags", label: "Add what you do", done: profile.categoryTags.length > 0, tab: "profile" },
-    { key: "button", label: "Add a primary button", done: activeButtons > 0, tab: "profile" },
     { key: "link", label: "Add your first link", done: activeLinks > 0, tab: "links" },
     { key: "social", label: "Connect a social icon", done: activeSocials > 0, tab: "social" },
   ];
@@ -514,8 +551,11 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
         bio: limitWords(current.bio, MAX_BIO_WORDS),
         theme: { themeId: current.theme.themeId },
         links: current.links.map((link, index) => ({ ...link, url: normalizeUrl(link.url), position: index })),
-        primaryButtons: current.primaryButtons.map((button, index) => ({ ...button, url: normalizeUrl(button.url), position: index })),
         socialIcons: current.socialIcons.map((social) => ({ ...social, url: normalizeUrl(social.url) })),
+        offers: {
+          ...current.offers,
+          items: current.offers.items.map((item, index) => ({ ...item, position: index })),
+        },
       };
 
       const response = await fetch("/api/profile", {
@@ -576,9 +616,13 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     setSaveStatus("pending");
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
+    /* typing = 700ms debounce, add/delete/toggle = lagbhag turant */
+    const delay = instantRef.current ? 60 : 700;
+    instantRef.current = false;
+
     saveTimer.current = setTimeout(() => {
       saveNow();
-    }, 700);
+    }, delay);
 
     return () => clearTimeout(saveTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -731,27 +775,29 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
     }
   }
 
-  /* file input aur drag-drop dono yahi use karte hain */
-  async function processImageFile(original) {
-    if (!original) return;
+  /*
+   * Validate + compress + upload. Success par URL, warna null (toast already dikha diya).
+   * Profile photo aur offer card images dono yahi use karte hain.
+   */
+  async function uploadImage(original) {
+    if (!original) return null;
 
     if (!ALLOWED_IMAGE_TYPES.includes(original.type)) {
       showToast("Only JPG, PNG and WEBP images are allowed.", "error");
-      return;
+      return null;
     }
 
     if (original.size > MAX_UPLOAD_BYTES) {
       showToast("Image must be smaller than 5MB.", "error");
-      return;
+      return null;
     }
 
-    setUploading(true);
     try {
       const file = await shrinkImage(original);
 
       if (!file) {
         showToast("Could not process this image. Try another one.", "error");
-        return;
+        return null;
       }
 
       const formData = new FormData();
@@ -768,13 +814,28 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
 
       if (!response.ok || !data?.success) {
         showToast(data?.message || `Upload failed (server error ${response.status}).`, "error");
-        return;
+        return null;
       }
 
-      updateField("profileImage", data.url);
-      showToast("Photo uploaded.");
+      return data.url;
     } catch {
       showToast("Upload failed. Check your connection and try again.", "error");
+      return null;
+    }
+  }
+
+  /* file input aur drag-drop dono yahi use karte hain (profile photo) */
+  async function processImageFile(original) {
+    if (!original) return;
+
+    setUploading(true);
+    try {
+      const url = await uploadImage(original);
+
+      if (url) {
+        updateField("profileImage", url);
+        showToast("Photo uploaded.");
+      }
     } finally {
       setUploading(false);
     }
@@ -829,8 +890,14 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
         const drag = dragRef.current;
         if (!drag || drag.type !== type) return;
 
-        const field = type === "link" ? "links" : "primaryButtons";
-        setProfile((prev) => ({ ...prev, [field]: moveItem(prev[field], drag.index, index) }));
+        if (type === "offer") {
+          setProfile((prev) => ({
+            ...prev,
+            offers: { ...prev.offers, items: moveItem(prev.offers.items, drag.index, index) },
+          }));
+        } else if (type === "link") {
+          setProfile((prev) => ({ ...prev, links: moveItem(prev.links, drag.index, index) }));
+        }
         endDrag();
       },
     };
@@ -843,19 +910,98 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
       .join(" ");
   }
 
-  /* buttons */
-  function addButton() {
-    updateField("primaryButtons", [
-      ...profile.primaryButtons,
-      { id: createId(), label: "New button", url: "", enabled: true, position: profile.primaryButtons.length },
-    ]);
+  /* ---------- offers (What I Offer) ---------- */
+  const offerCount = profile.offers.items.length;
+
+  /* public page par abhi kitne cards dikh rahe hain */
+  const liveOffers = profile.offers.items.filter((o) => o.enabled && o.title.trim()).length;
+
+  function updateOffers(patch) {
+    if (patch.enabled !== undefined) instantRef.current = true;
+    setProfile((prev) => ({ ...prev, offers: { ...prev.offers, ...patch } }));
   }
-  const updateButton = (id, patch) =>
-    updateField("primaryButtons", profile.primaryButtons.map((b) => (b.id === id ? { ...b, ...patch } : b)));
-  const deleteButton = (id) =>
-    updateField("primaryButtons", profile.primaryButtons.filter((b) => b.id !== id));
-  const moveButton = (index, dir) =>
-    updateField("primaryButtons", reorder(profile.primaryButtons, index, dir));
+
+  function updateInquiry(patch) {
+    if (patch.enabled !== undefined) instantRef.current = true;
+    setProfile((prev) => ({ ...prev, inquiry: { ...prev.inquiry, ...patch } }));
+  }
+
+  function addOffer() {
+    if (offerCount >= MAX_OFFERS) {
+      showToast(`You can add up to ${MAX_OFFERS} cards.`, "error");
+      return;
+    }
+
+    instantRef.current = true;
+
+    /* Naya card turant preview me dikhe: default text + section auto ON */
+    setProfile((prev) => ({
+      ...prev,
+      offers: {
+        ...prev.offers,
+        enabled: true,
+        items: [
+          ...prev.offers.items,
+          {
+            id: createId(),
+            title: "New offering",
+            description: "Short description of what you offer.",
+            image: "",
+            buttonText: "Get a Quote",
+            price: "",
+            action: "form",
+            actionValue: "",
+            enabled: true,
+            position: prev.offers.items.length,
+          },
+        ],
+      },
+    }));
+  }
+
+  /* functional update: upload ke await ke baad bhi stale state ka issue nahi */
+  function updateOffer(id, patch) {
+    setProfile((prev) => ({
+      ...prev,
+      offers: {
+        ...prev.offers,
+        items: prev.offers.items.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+      },
+    }));
+  }
+
+  function deleteOffer(id) {
+    instantRef.current = true;
+    setProfile((prev) => ({
+      ...prev,
+      offers: { ...prev.offers, items: prev.offers.items.filter((o) => o.id !== id) },
+    }));
+  }
+
+  function moveOffer(index, dir) {
+    instantRef.current = true;
+    setProfile((prev) => ({
+      ...prev,
+      offers: { ...prev.offers, items: reorder(prev.offers.items, index, dir) },
+    }));
+  }
+
+  async function handleOfferImage(id, event) {
+    const input = event.target;
+    const original = input.files?.[0];
+
+    if (original) {
+      setOfferUploading(id);
+      try {
+        const url = await uploadImage(original);
+        if (url) updateOffer(id, { image: url });
+      } finally {
+        setOfferUploading(null);
+      }
+    }
+
+    input.value = "";
+  }
 
   /* links */
   function addLink(platform = null) {
@@ -949,7 +1095,7 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
   }[saveStatus];
 
   const tabCount = {
-    profile: activeButtons || null,
+    profile: null,
     links: profile.links.length || null,
     social: activeSocials || null,
     appearance: null,
@@ -1077,11 +1223,6 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                 <span className="pe-stat-icon"><Icon name="link" size={15} /></span>
                 <b>{activeLinks}</b>
                 <small>Live links</small>
-              </div>
-              <div className="pe-stat">
-                <span className="pe-stat-icon"><Icon name="pointer" size={15} /></span>
-                <b>{activeButtons}</b>
-                <small>Buttons</small>
               </div>
               <div className="pe-stat">
                 <span className="pe-stat-icon"><Icon name="at" size={15} /></span>
@@ -1347,59 +1488,252 @@ export default function ProfileEditor({ initialProfile, backHref = "/dashboard" 
                 )}
               </section>
 
+              {/* ---------- WHAT I OFFER ---------- */}
               <section className="pe-section">
                 <SectionHead
-                  icon="pointer"
-                  title="Extra buttons"
-                  hint="Shown below the “Visit My Store” button. Drag the handle to reorder."
+                  icon="gift"
+                  title="What I Offer"
+                  hint="Show up to 5 cards above your links. Turn it on to show it on your page."
+                  aside={<span className="pe-counter">{offerCount}/{MAX_OFFERS}</span>}
                 />
 
-                {profile.primaryButtons.length === 0 && (
+                <div className="pe-opt">
+                  <div className="pe-opt-text">
+                    <b>Show “{profile.offers.title || "What I Offer"}” on my page</b>
+                    <span>Cards appear above “My Links”. Off means nothing is shown.</span>
+                  </div>
+                  <Toggle
+                    checked={profile.offers.enabled}
+                    onChange={(v) => updateOffers({ enabled: v })}
+                    label="Show offers on page"
+                  />
+                </div>
+
+                <p
+                  className={
+                    profile.offers.enabled && liveOffers > 0
+                      ? "pe-offer-status pe-offer-status-on"
+                      : "pe-offer-status"
+                  }
+                >
+                  <Icon name={profile.offers.enabled && liveOffers > 0 ? "eye" : "eyeoff"} size={13} />
+                  {!profile.offers.enabled
+                    ? "Section is OFF. Visitors cannot see your cards."
+                    : liveOffers === 0
+                    ? "Section is ON, but no card is visible yet. Add a title and keep a card enabled."
+                    : `${liveOffers} card${liveOffers === 1 ? "" : "s"} visible on your page.`}
+                </p>
+
+                <div className="pe-grid-2">
+                  <label className="pe-field">
+                    <span className="pe-label">Section title</span>
+                    <input type="text" value={profile.offers.title} maxLength={40}
+                      placeholder="What I Offer"
+                      onChange={(e) => updateOffers({ title: e.target.value })} />
+                  </label>
+                  <label className="pe-field">
+                    <span className="pe-label">Section subtitle</span>
+                    <input type="text" value={profile.offers.subtitle} maxLength={100}
+                      placeholder="Explore what I do and how I can help you."
+                      onChange={(e) => updateOffers({ subtitle: e.target.value })} />
+                  </label>
+                </div>
+
+                {offerCount === 0 && (
                   <EmptyState
-                    icon="pointer"
-                    title="No extra buttons yet"
-                    text="Add another call to action, like “Book a call” or “Join my community”."
-                    actionLabel="Add your first button"
-                    onAction={addButton}
+                    icon="gift"
+                    title="No cards yet"
+                    text="Add a service, product or course. Each card has an image, a short description and a button."
+                    actionLabel="Add your first card"
+                    onAction={addOffer}
                   />
                 )}
 
-                {profile.primaryButtons.map((button, index) => (
-                  <div
-                    key={button.id}
-                    className={dragClass(
-                      button.enabled ? "pe-row pe-button-editor-row" : "pe-row pe-button-editor-row pe-off",
-                      "button",
-                      index
-                    )}
-                    {...dropProps("button", index)}
-                  >
-                    <span className="pe-grip" title="Drag to reorder" {...gripProps("button", index)}>
-                      <Icon name="grip" size={16} />
-                    </span>
-                    <span className="pe-row-badge"><Icon name="pointer" size={15} /></span>
-                    <input className="pe-row-input" value={button.label} placeholder="Button label"
-                      onChange={(e) => updateButton(button.id, { label: e.target.value })} />
-                    <input className="pe-row-input" value={button.url} placeholder="https://"
-                      onChange={(e) => updateButton(button.id, { url: e.target.value })} />
-                    <RowActions
-                      index={index}
-                      total={profile.primaryButtons.length}
-                      onUp={(i) => moveButton(i, -1)}
-                      onDown={(i) => moveButton(i, 1)}
-                      enabled={button.enabled}
-                      onToggle={(v) => updateButton(button.id, { enabled: v })}
-                      onDelete={() => deleteButton(button.id)}
-                    />
-                  </div>
-                ))}
+                {profile.offers.items.map((offer, index) => {
+                  const waDigits = String(offer.actionValue || "").replace(/\D/g, "");
+                  const urlMissing = offer.action === "url" && !offer.actionValue.trim();
+                  const waInvalid =
+                    offer.action === "whatsapp" && !/^\d{7,15}$/.test(waDigits);
+                  const formOff = offer.action === "form" && !profile.inquiry.enabled;
+                  const noTitle = !offer.title.trim();
 
-                {profile.primaryButtons.length > 0 && (
-                  <button type="button" className="pe-btn pe-btn-outline" onClick={addButton}>
+                  return (
+                    <div
+                      key={offer.id}
+                      className={dragClass(
+                        offer.enabled ? "pe-offer-card" : "pe-offer-card pe-off",
+                        "offer",
+                        index
+                      )}
+                      {...dropProps("offer", index)}
+                    >
+                      <div className="pe-offer-top">
+                        <span className="pe-grip" title="Drag to reorder" {...gripProps("offer", index)}>
+                          <Icon name="grip" size={16} />
+                        </span>
+                        <span className="pe-offer-num">Card {index + 1}</span>
+                        <div className="pe-offer-actions">
+                          <RowActions
+                            index={index}
+                            total={offerCount}
+                            onUp={(i) => moveOffer(i, -1)}
+                            onDown={(i) => moveOffer(i, 1)}
+                            enabled={offer.enabled}
+                            onToggle={(v) => {
+                              instantRef.current = true;
+                              updateOffer(offer.id, { enabled: v });
+                            }}
+                            onDelete={() => deleteOffer(offer.id)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pe-offer-body">
+                        <div className="pe-offer-media">
+                          <label className="pe-offer-img" title="Upload image">
+                            {offer.image ? (
+                              <img src={offer.image} alt="" />
+                            ) : (
+                              <>
+                                <span className="pe-offer-img-icon">
+                                  <Icon name="upload" size={18} />
+                                </span>
+                                <span>{offerUploading === offer.id ? "Uploading…" : "Upload image"}</span>
+                              </>
+                            )}
+                            {offerUploading === offer.id && (
+                              <span className="pe-photo-loading"><i className="pe-spin" /></span>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) => handleOfferImage(offer.id, e)}
+                              disabled={offerUploading === offer.id}
+                              hidden
+                            />
+                          </label>
+                          {offer.image && (
+                            <button type="button" className="pe-btn pe-btn-ghost-danger pe-btn-xs"
+                              onClick={() => updateOffer(offer.id, { image: "" })}>
+                              <Icon name="trash" size={12} />
+                              Remove
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="pe-offer-fields">
+                          <input className="pe-row-input" value={offer.title} maxLength={MAX_OFFER_TITLE}
+                            placeholder="Title (e.g. Personal Training)"
+                            onChange={(e) => updateOffer(offer.id, { title: e.target.value })} />
+
+                          <textarea className="pe-row-input pe-offer-desc" rows={2} value={offer.description}
+                            maxLength={MAX_OFFER_DESC}
+                            placeholder="Short description (2 lines max)"
+                            onChange={(e) =>
+                              updateOffer(offer.id, { description: e.target.value.replace(/\n/g, " ") })
+                            } />
+                          <span className="pe-offer-count">{offer.description.length}/{MAX_OFFER_DESC}</span>
+
+                          <div className="pe-offer-fields-row">
+                            <input className="pe-row-input" value={offer.buttonText} maxLength={MAX_OFFER_BUTTON}
+                              placeholder="Button text (e.g. Book a Session)"
+                              onChange={(e) => updateOffer(offer.id, { buttonText: e.target.value })} />
+                            <input className="pe-row-input" value={offer.price} maxLength={40}
+                              placeholder="Price (optional, e.g. From ₹5,000)"
+                              onChange={(e) => updateOffer(offer.id, { price: e.target.value })} />
+                          </div>
+
+                          <div className="pe-offer-fields-row">
+                            <select
+                              className="pe-row-input pe-select"
+                              value={offer.action}
+                              aria-label="Click action"
+                              onChange={(e) => updateOffer(offer.id, { action: e.target.value, actionValue: "" })}
+                            >
+                              {OFFER_ACTIONS.map((a) => (
+                                <option key={a.value} value={a.value}>{a.label}</option>
+                              ))}
+                            </select>
+
+                            {offer.action === "url" && (
+                              <input className="pe-row-input" value={offer.actionValue}
+                                placeholder="https://your-link.com"
+                                onChange={(e) => updateOffer(offer.id, { actionValue: e.target.value })} />
+                            )}
+                            {offer.action === "whatsapp" && (
+                              <input className="pe-row-input" value={offer.actionValue}
+                                inputMode="tel"
+                                placeholder="WhatsApp number with country code"
+                                onChange={(e) => updateOffer(offer.id, { actionValue: e.target.value })} />
+                            )}
+                          </div>
+
+                          {noTitle && (
+                            <span className="pe-warn"><Icon name="alert" size={12} /> Add a title, otherwise this card stays hidden.</span>
+                          )}
+                          {urlMissing && (
+                            <span className="pe-warn"><Icon name="alert" size={12} /> Add a link, otherwise this card is not clickable.</span>
+                          )}
+                          {waInvalid && (
+                            <span className="pe-warn"><Icon name="alert" size={12} /> Enter a valid number, e.g. 919876543210.</span>
+                          )}
+                          {formOff && (
+                            <span className="pe-warn"><Icon name="alert" size={12} /> Turn on the Inquiry form below, otherwise this card is not clickable.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {offerCount > 0 && offerCount < MAX_OFFERS && (
+                  <button type="button" className="pe-btn pe-btn-outline" onClick={addOffer}>
                     <Icon name="plus" size={15} />
-                    Add button
+                    Add card
                   </button>
                 )}
+
+                <p className="pe-hint">
+                  <Icon name="info" size={12} /> Images are compressed automatically and shown in full, without cropping. Upload up to 5 MB (JPG, PNG or WEBP).
+                </p>
+              </section>
+
+              {/* ---------- INQUIRY FORM ---------- */}
+              <section className="pe-section">
+                <SectionHead
+                  icon="mail"
+                  title="Inquiry form"
+                  hint="Visitors can send you a message. It lands in your Inbox."
+                />
+
+                <div className="pe-opt">
+                  <div className="pe-opt-text">
+                    <b>Show inquiry form on my page</b>
+                    <span>Appears below “My Links”. Colors follow your theme.</span>
+                  </div>
+                  <Toggle
+                    checked={profile.inquiry.enabled}
+                    onChange={(v) => updateInquiry({ enabled: v })}
+                    label="Show inquiry form on page"
+                  />
+                </div>
+
+                <div className="pe-grid-2">
+                  <label className="pe-field">
+                    <span className="pe-label">Form title</span>
+                    <input type="text" value={profile.inquiry.title} maxLength={60}
+                      placeholder="Let's Work Together"
+                      onChange={(e) => updateInquiry({ title: e.target.value })} />
+                  </label>
+                  <label className="pe-field">
+                    <span className="pe-label">Form subtitle</span>
+                    <input type="text" value={profile.inquiry.subtitle} maxLength={120}
+                      placeholder="Tell me what you need. I'll get back to you."
+                      onChange={(e) => updateInquiry({ subtitle: e.target.value })} />
+                  </label>
+                </div>
+
+                <p className="pe-tip"><Icon name="sparkle" size={14} /> The “what you need” dropdown lists your offer cards automatically. Spam is limited to 2 messages per visitor every 15 minutes.</p>
               </section>
             </div>
           )}

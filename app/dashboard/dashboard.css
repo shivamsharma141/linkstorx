@@ -1,13 +1,15 @@
 /* =========================================================
-   LinkStorX Dashboard shell.
-   Desktop: grouped sidebar.  Mobile/tablet: bottom tab bar.
+   LinkStorX Dashboard shell (navbar theme se matched).
+   Font: Poppins. Logo: Chewy. Header: poori width ka white bar.
+   Desktop: sidebar (no scroller). Mobile/tablet: blur bottom bar
+   (6 items) + right white hamburger + left drawer.
 
    IMPORTANT: shell ke resets :where() se zero-specificity hain aur
    editors (.pe-wrapper / .prodedit-wrapper / .prod-wrapper) ko touch
-   nahi karte, isliye unke icons, buttons, colors waise hi rehte hain.
+   nahi karte.
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chewy&family=Poppins:wght@500;600;700;800;900&display=swap');
 
 .dash-layout,
 .dash-layout * {
@@ -15,24 +17,28 @@
 }
 
 .dash-layout {
+  --nb-ink: #14141f;
+  --nb-text: #2a2b3d;
+  --nb-muted: #6c6e82;
+  --nb-dark: linear-gradient(120deg, #1a2fd6 0%, #2f6bff 100%);
+
   min-height: 100vh;
   min-height: 100dvh;
   background: #f4f7ff;
   overflow-x: clip;
 }
 
-/* editor pages: white background (jaisa pehle tha) */
 .dash-layout:has(.pe-wrapper, .prodedit-wrapper, .prod-wrapper) {
   background: #ffffff;
 }
 
-/* Poppins + navy text sirf shell aur home content par; editors apna font/color khud set karte hain */
 .dash-sidebar,
+.dash-drawer,
 .dash-header,
 .dash-bottom,
 .dash-content > :not(.pe-wrapper):not(.prodedit-wrapper):not(.prod-wrapper) {
   font-family: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  color: #0a0f3d;
+  color: #14141f;
 }
 
 /* ---------- soft resets (zero specificity, editors excluded) ---------- */
@@ -66,9 +72,29 @@
   stroke-linejoin: round;
 }
 
-/* hidden checkbox: profile dropdown open/close state */
 .dash-check {
   display: none;
+}
+
+/* ---------- Logo: "linkstorx" Chewy, sab black (navbar jaisa) ---------- */
+
+.dash-logo {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: 'Chewy', 'Poppins', system-ui, sans-serif;
+  font-size: 28px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: lowercase;
+  color: #000;
+  white-space: nowrap;
+}
+
+.dash-logo span {
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
 }
 
 /* ---------- Sidebar (desktop) ---------- */
@@ -78,30 +104,22 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: 260px;
-  z-index: 40;
+  width: 256px;
+  z-index: 41;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  overflow: hidden;
   background: #ffffff;
-  border-right: 1px solid rgba(10, 15, 61, 0.08);
-  box-shadow: 4px 0 18px rgba(10, 15, 61, 0.05);
+  border-right: 1px solid rgba(20, 20, 60, 0.08);
+  box-shadow: 4px 0 24px -14px rgba(50, 40, 120, 0.3);
 }
 
 .dash-sidebar-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 18px 18px 20px;
-  border-bottom: 1px solid rgba(10, 15, 61, 0.08);
-}
-
-.dash-sidebar-logo {
-  height: 60px;
-  width: auto;
-  max-width: 100%;
-  object-fit: contain;
-  display: block;
+  height: 64px;
+  padding: 0 22px;
+  border-bottom: 1px solid rgba(20, 20, 60, 0.08);
 }
 
 .dash-links {
@@ -109,16 +127,16 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 12px;
-  overflow-y: auto;
+  gap: 3px;
+  padding: 12px 12px;
+  overflow: hidden; /* scroller nahi */
 }
 
 .dash-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 14px;
+  gap: 3px;
+  margin-top: 10px;
 }
 
 .dash-group-title {
@@ -126,13 +144,13 @@
   padding: 0 16px 4px;
   font-size: 12.5px;
   font-weight: 600;
-  color: rgba(10, 15, 61, 0.45);
+  color: var(--nb-muted);
 }
 
 .dash-links-bottom {
   margin-top: auto;
-  padding-top: 14px;
-  border-top: 1px solid rgba(10, 15, 61, 0.08);
+  padding-top: 10px;
+  border-top: 1px solid rgba(20, 20, 60, 0.08);
 }
 
 .dash-link {
@@ -140,12 +158,12 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 11px 16px;
   border-radius: 14px;
-  color: #3b4270;
+  color: var(--nb-text);
   font-size: 15px;
-  font-weight: 600;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  font-weight: 500;
+  transition: color 0.2s ease, background-color 0.2s ease;
 }
 
 .dash-link span {
@@ -156,162 +174,178 @@
 }
 
 .dash-link:hover {
-  background: rgba(10, 15, 61, 0.06);
-  color: #0a0f3d;
+  background: rgba(20, 20, 60, 0.06);
+  color: var(--nb-ink);
 }
 
 .dash-link-active,
 .dash-link-active:hover {
-  background: #e8eeff;
-  color: #1a2fd6;
+  background: rgba(20, 20, 60, 0.07);
+  color: var(--nb-ink);
+  font-weight: 700;
 }
 
 .dash-link-active::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 22%;
-  bottom: 22%;
+  top: 24%;
+  bottom: 24%;
   width: 3px;
   border-radius: 0 3px 3px 0;
-  background: #1a2fd6;
+  background: #2f6bff;
 }
 
-/* ---------- Subscription button (sidebar ke sabse neeche) ---------- */
+/* ---------- Subscription: box type button ---------- */
 
 .dash-upgrade {
-  padding: 12px 12px 16px;
+  padding: 10px 12px 12px;
 }
 
-.dash-layout .dash-upgrade-btn {
+.dash-layout .dash-sub {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 14px 16px;
+  padding: 10px 12px;
   border-radius: 14px;
-  background: linear-gradient(120deg, #1a2fd6 0%, #2f6bff 60%, #00b4ff 100%);
+  background: var(--nb-dark);
   color: #ffffff;
-  font-size: 15px;
-  font-weight: 600;
-  box-shadow: 0 8px 20px rgba(26, 47, 214, 0.28);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 22px -10px rgba(26, 47, 214, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: transform 0.2s ease, filter 0.2s ease;
 }
 
-.dash-layout .dash-upgrade-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 26px rgba(26, 47, 214, 0.38);
+.dash-layout .dash-sub:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
 }
 
-.dash-layout .dash-upgrade-btn svg path {
-  fill: #ffd84d;
-  stroke: #ffd84d;
-}
-
-.dash-upgrade-icon {
+.dash-sub-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: 11px;
   background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 
-.dash-upgrade-text {
+.dash-layout .dash-sub-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.dash-layout .dash-sub-icon svg path {
+  stroke-width: 2;
+}
+
+.dash-sub-text {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  flex: 1;
   min-width: 0;
   line-height: 1.25;
 }
 
-.dash-upgrade-title {
-  font-size: 15px;
-  font-weight: 600;
+.dash-sub-title {
+  font-size: 14.5px;
+  font-weight: 700;
 }
 
-.dash-upgrade-text small {
+.dash-sub-text small {
   display: block;
-  margin-top: 2px;
+  margin-top: 1px;
   font-size: 12px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.85);
 }
 
-.dash-layout .dash-upgrade-btn-active {
-  justify-content: flex-start;
-  padding: 12px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-}
-
-.dash-layout .dash-upgrade-btn-active svg path {
-  fill: none;
-  stroke: #ffffff;
-  stroke-width: 3;
-}
-
-.dash-layout .dash-upgrade-btn-active .dash-upgrade-icon {
-  background: rgba(255, 255, 255, 0.28);
+.dash-layout .dash-sub-arrow {
+  width: 18px;
+  height: 18px;
+  opacity: 0.85;
 }
 
 .dash-sidebar-footer {
   margin: 0;
-  padding: 14px 18px 22px;
-  border-top: 1px solid rgba(10, 15, 61, 0.08);
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(20, 20, 60, 0.08);
   font-size: 12px;
   text-align: center;
-  color: rgba(10, 15, 61, 0.45);
+  color: rgba(20, 20, 60, 0.45);
 }
 
 /* ---------- Main ---------- */
 
 .dash-main {
-  margin-left: 260px;
+  margin-left: 256px;
   min-height: 100vh;
   min-height: 100dvh;
   min-width: 0;
 }
 
+/* poori width ka white header bar */
 .dash-header {
   position: sticky;
   top: 0;
   z-index: 40;
+  height: 64px;
+  padding: 0 24px;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(20, 20, 60, 0.08);
+  box-shadow: 0 6px 20px -12px rgba(20, 20, 60, 0.2);
+}
+
+.dash-header-inner {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  height: 72px;
-  padding: 0 24px;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(10, 15, 61, 0.06);
-  box-shadow: 0 4px 18px rgba(10, 15, 61, 0.06);
+  gap: 10px;
+  width: 100%;
+  height: 100%;
 }
 
 .dash-header-logo {
   display: none;
-  flex-shrink: 1;
-  min-width: 0;
-  line-height: 0;
-}
-
-.dash-header-img {
-  height: 44px;
-  width: auto;
-  max-width: 100%;
-  object-fit: contain;
 }
 
 .dash-header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
   flex-shrink: 0;
 }
 
-/* ---------- Profile ---------- */
+/* ---------- Hamburger (mobile only, WHITE) ---------- */
+
+.dash-burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid rgba(20, 20, 60, 0.12);
+  color: #14141f;
+  box-shadow: 0 4px 12px rgba(20, 20, 60, 0.08);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.2s ease;
+}
+
+.dash-burger:active {
+  transform: scale(0.95);
+}
+
+.dash-burger svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* ---------- Profile (desktop dropdown) ---------- */
 
 .dash-profile {
   position: relative;
@@ -321,10 +355,10 @@
   display: none;
   position: fixed;
   inset: 0;
-  z-index: 1;
+  z-index: 39;
 }
 
-#dash-profile:checked ~ .dash-main .dash-profile-overlay {
+#dash-profile:checked ~ .dash-profile-overlay {
   display: block;
 }
 
@@ -333,17 +367,19 @@
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   height: 44px;
   padding: 0 12px 0 4px;
   border-radius: 999px;
-  background: rgba(10, 15, 61, 0.05);
-  color: #0a0f3d;
-  transition: background-color 0.25s ease;
+  background: #ffffff;
+  border: 1px solid rgba(20, 20, 60, 0.12);
+  color: var(--nb-ink);
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s ease;
 }
 
 .dash-profile-btn:hover {
-  background: rgba(10, 15, 61, 0.1);
+  background: rgba(20, 20, 60, 0.04);
 }
 
 .dash-avatar {
@@ -354,18 +390,19 @@
   height: 36px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: linear-gradient(120deg, #1a2fd6 0%, #2f6bff 100%);
+  background: var(--nb-dark);
   color: #ffffff;
   font-size: 15px;
   font-weight: 700;
+  line-height: 1;
 }
 
 .dash-profile-name {
-  max-width: 140px;
+  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
 }
 
@@ -377,15 +414,15 @@
 .dash-dropdown {
   display: none;
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   right: 0;
   z-index: 3;
   width: 260px;
   padding: 8px;
-  border-radius: 16px;
+  border-radius: 20px;
   background: #ffffff;
-  border: 1px solid rgba(10, 15, 61, 0.08);
-  box-shadow: 0 16px 40px rgba(10, 15, 61, 0.16);
+  border: 1px solid rgba(20, 20, 60, 0.08);
+  box-shadow: 0 16px 40px rgba(20, 20, 60, 0.16);
 }
 
 #dash-profile:checked ~ .dash-main .dash-dropdown {
@@ -393,9 +430,9 @@
 }
 
 .dash-dropdown-user {
-  padding: 10px 12px 14px;
-  margin-bottom: 8px;
-  border-bottom: 1px solid rgba(10, 15, 61, 0.08);
+  padding: 10px 12px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(20, 20, 60, 0.08);
 }
 
 .dash-dropdown-name {
@@ -405,6 +442,7 @@
   white-space: nowrap;
   font-size: 15px;
   font-weight: 700;
+  color: var(--nb-ink);
 }
 
 .dash-dropdown-email {
@@ -414,26 +452,7 @@
   white-space: nowrap;
   font-size: 13px;
   font-weight: 500;
-  color: #3b4270;
-}
-
-/* sirf mobile par dikhta hai (desktop par sidebar mein button hai) */
-.dash-dropdown-link {
-  display: none;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 11px 12px;
-  margin-bottom: 4px;
-  border-radius: 12px;
-  color: #1a2fd6;
-  font-size: 14px;
-  font-weight: 600;
-  transition: background-color 0.2s ease;
-}
-
-.dash-dropdown-link:hover {
-  background: #e8eeff;
+  color: var(--nb-muted);
 }
 
 .dash-logout {
@@ -445,7 +464,7 @@
   border-radius: 12px;
   background: transparent;
   color: #d92d2d;
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 600;
   text-align: left;
   transition: background-color 0.2s ease;
@@ -459,7 +478,7 @@
 
 .dash-content {
   min-width: 0;
-  padding: 28px 24px;
+  padding: 24px 24px 28px;
 }
 
 .dash-heading {
@@ -468,16 +487,103 @@
   overflow-wrap: anywhere;
 }
 
-/* editors ke sticky panels ab sticky header ke neeche se start hon */
+/* editors ke sticky panels header ke neeche se start hon */
 .dash-content .pe-side-inner {
-  top: 72px;
+  top: 64px;
 }
 
 .dash-content .prodedit-preview {
-  top: 92px;
+  top: 84px;
 }
 
-/* ---------- Bottom bar (mobile / tablet) ---------- */
+/* ---------- Hamburger drawer (left se right khulta hai) ---------- */
+
+.dash-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+  background: rgba(20, 20, 40, 0.35);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.dash-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  width: min(82vw, 320px);
+  background: #ffffff;
+  border-radius: 0 26px 26px 0;
+  box-shadow: 24px 0 60px rgba(20, 20, 60, 0.18);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.4s;
+  overflow: hidden;
+}
+
+#dash-menu:checked ~ .dash-drawer-overlay {
+  opacity: 1;
+  visibility: visible;
+}
+
+#dash-menu:checked ~ .dash-drawer {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.dash-drawer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 14px 22px;
+}
+
+.dash-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid rgba(20, 20, 60, 0.12);
+  box-shadow: 0 4px 12px rgba(20, 20, 60, 0.08);
+  color: #14141f;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dash-drawer-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 14px 0;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(20, 20, 60, 0.04);
+}
+
+.dash-drawer-user-text {
+  min-width: 0;
+}
+
+.dash-drawer-links {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 12px;
+  overflow-y: auto;
+}
+
+/* ---------- Bottom bar (mobile / tablet, blur, 6 items) ---------- */
 
 .dash-bottom {
   display: none;
@@ -486,12 +592,14 @@
   right: 0;
   bottom: 0;
   z-index: 40;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 2px;
-  padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 0px));
-  background: #ffffff;
-  border-top: 1px solid rgba(10, 15, 61, 0.08);
-  box-shadow: 0 -6px 22px rgba(10, 15, 61, 0.08);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-top: 1px solid rgba(20, 20, 60, 0.06);
+  box-shadow: 0 -6px 22px rgba(20, 20, 60, 0.08);
 }
 
 .dash-bottom-item {
@@ -501,12 +609,13 @@
   justify-content: center;
   gap: 3px;
   min-width: 0;
-  padding: 7px 2px 6px;
-  border-radius: 16px;
-  color: #6b7299;
-  font-size: 11px;
+  padding: 7px 1px 6px;
+  border-radius: 14px;
+  color: var(--nb-muted);
+  font-size: 10.5px;
   font-weight: 600;
   line-height: 1.2;
+  -webkit-tap-highlight-color: transparent;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
@@ -518,13 +627,13 @@
 }
 
 .dash-bottom-item svg {
-  width: 22px;
-  height: 22px;
+  width: 21px;
+  height: 21px;
 }
 
 .dash-bottom-item-active {
-  background: #e8eeff;
-  color: #1a2fd6;
+  background: rgba(20, 20, 60, 0.07);
+  color: var(--nb-ink);
 }
 
 .dash-bottom-item-active svg path {
@@ -533,10 +642,13 @@
 
 /* =========================================================
    Desktop: My Store / Product editor par sidebar nahi dikhta
-   (phone par bottom bar hamesha dikhta hai).
-   Products LIST par bhi hatana ho to :has() mein .prod-wrapper add kar do.
    ========================================================= */
 @media (min-width: 969px) {
+  .dash-drawer,
+  .dash-drawer-overlay {
+    display: none;
+  }
+
   .dash-layout:has(.pe-wrapper, .prodedit-wrapper) .dash-sidebar {
     display: none;
   }
@@ -545,12 +657,44 @@
     margin-left: 0;
   }
 
-  .dash-layout:has(.pe-wrapper, .prodedit-wrapper) .dash-header {
+  .dash-layout:has(.pe-wrapper, .prodedit-wrapper) .dash-header-inner {
     justify-content: space-between;
   }
 
   .dash-layout:has(.pe-wrapper, .prodedit-wrapper) .dash-header-logo {
-    display: block;
+    display: inline-flex;
+  }
+}
+
+/* Short desktop screens: thoda compact taaki scroller na aaye */
+@media (min-width: 969px) and (max-height: 780px) {
+  .dash-sidebar-top {
+    height: 56px;
+  }
+
+  .dash-link {
+    padding: 8px 16px;
+  }
+
+  .dash-group {
+    margin-top: 4px;
+  }
+
+  .dash-group-title {
+    padding-bottom: 2px;
+  }
+
+  .dash-sub-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .dash-upgrade {
+    padding: 8px 12px 8px;
+  }
+
+  .dash-sidebar-footer {
+    padding: 8px 16px 10px;
   }
 }
 
@@ -558,7 +702,6 @@
    Responsive
    ========================================================= */
 
-/* Tablet and below: sidebar hat jaata hai, bottom bar aata hai */
 @media (max-width: 968px) {
   .dash-sidebar {
     display: none;
@@ -572,126 +715,116 @@
     margin-left: 0;
   }
 
+  /* white header bar: logo left, white hamburger right */
   .dash-header {
-    justify-content: space-between;
-    height: 64px;
+    height: 58px;
     padding: 0 14px;
   }
 
+  .dash-header-inner {
+    justify-content: space-between;
+  }
+
   .dash-header-logo {
-    display: block;
+    display: inline-flex;
+    font-size: 25px;
   }
 
-  /* icon-only profile on mobile */
-  .dash-profile {
-    position: static;
-  }
-
-  .dash-profile-btn {
-    height: auto;
-    padding: 0;
-    background: transparent;
-  }
-
-  .dash-profile-name,
-  .dash-layout .dash-chevron {
-    display: none;
-  }
-
-  .dash-dropdown {
-    top: calc(100% + 6px);
-    right: 8px;
-    width: min(260px, calc(100vw - 16px));
-  }
-
-  .dash-dropdown-link {
+  .dash-burger {
     display: flex;
   }
 
-  /* content bottom bar ke peeche na chhupe */
-  .dash-content {
-    padding: 22px 14px calc(92px + env(safe-area-inset-bottom, 0px));
+  /* avatar ab hamburger drawer mein hai */
+  .dash-header-right {
+    display: none;
   }
 
-  /* editors ke toast bottom bar ke upar dikhe */
+  .dash-content {
+    padding: 18px 14px calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .dash-content .pe-side-inner {
+    top: 58px;
+  }
+
   .dash-layout .pe-toast {
     bottom: calc(86px + env(safe-area-inset-bottom, 0px));
   }
 }
 
-/* Small phones */
 @media (max-width: 380px) {
   .dash-header {
     padding: 0 10px;
-    gap: 6px;
   }
 
-  .dash-header-img {
+  .dash-header-logo {
+    font-size: 22px;
+  }
+
+  .dash-burger {
+    width: 36px;
     height: 36px;
   }
 
-  .dash-avatar {
-    width: 34px;
-    height: 34px;
-  }
-
   .dash-heading {
-    font-size: 21px;
+    font-size: 22px;
   }
 
   .dash-bottom {
-    padding-left: 3px;
-    padding-right: 3px;
+    padding-left: 2px;
+    padding-right: 2px;
     gap: 1px;
   }
 
   .dash-bottom-item {
-    font-size: 10px;
+    font-size: 9.5px;
   }
 
   .dash-bottom-item svg {
-    width: 20px;
-    height: 20px;
+    width: 19px;
+    height: 19px;
   }
 }
 
-/* Ultra-narrow screens (300px and below) */
 @media (max-width: 300px) {
   .dash-header {
     padding: 0 8px;
-    gap: 4px;
   }
 
-  .dash-header-img {
-    height: 30px;
+  .dash-header-logo {
+    font-size: 19px;
   }
 
-  .dash-avatar {
+  .dash-burger {
     width: 30px;
     height: 30px;
   }
 
   .dash-content {
-    padding: 18px 10px calc(88px + env(safe-area-inset-bottom, 0px));
+    padding: 16px 10px calc(88px + env(safe-area-inset-bottom, 0px));
   }
 
   .dash-bottom-item {
-    font-size: 9px;
-    padding: 6px 1px 5px;
-  }
-}
-
-/* Landscape phones: kam height, bottom bar patla */
-@media (max-width: 968px) and (max-height: 480px) {
-  .dash-bottom-item {
-    flex-direction: row;
-    gap: 6px;
-    padding: 6px 4px;
+    font-size: 8.5px;
+    padding: 6px 0 5px;
   }
 
   .dash-bottom-item svg {
-    width: 18px;
-    height: 18px;
+    width: 17px;
+    height: 17px;
+  }
+}
+
+@media (max-width: 968px) and (max-height: 480px) {
+  .dash-bottom-item {
+    flex-direction: row;
+    gap: 5px;
+    padding: 6px 3px;
+  }
+
+  .dash-bottom-item svg {
+    width: 17px;
+    height: 17px;
   }
 
   .dash-content {
@@ -699,11 +832,13 @@
   }
 }
 
-/* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
   .dash-link,
   .dash-bottom-item,
-  .dash-layout .dash-upgrade-btn {
+  .dash-drawer,
+  .dash-drawer-overlay,
+  .dash-burger,
+  .dash-layout .dash-sub {
     transition-duration: 0.01ms !important;
   }
 }
