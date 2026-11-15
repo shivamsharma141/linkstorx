@@ -1,9 +1,15 @@
 import crypto from "crypto";
+import mongoose from "mongoose";
 
 import { findProfileByUsername } from "@/app/databaseQueries/profileDatabaseQueries";
 import {
   createInquiry,
   findRecentInquiriesByIp,
+  findInquiriesBySeller,
+  countUnreadInquiries,
+  updateInquiryStatus,
+  deleteInquiryById,
+  deleteExpiredInquiries,
 } from "@/app/databaseQueries/inquiryDatabaseQueries";
 
 /* =========================================================
@@ -19,6 +25,8 @@ const MAX_NAME = 80;
 const MAX_CONTACT = 120;
 const MAX_OFFERING = 80;
 const MAX_MESSAGE = 1000;
+
+const STATUSES = ["unread", "read", "replied"];
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_PATTERN = /^\+?\d{7,15}$/;
@@ -126,4 +134,66 @@ export async function submitInquiry(input, ip) {
   });
 
   return { sent: true };
+}
+
+/* =========================================================
+   INBOX (seller, login required)
+========================================================= */
+
+function assertId(id) {
+  if (!mongoose.isValidObjectId(id)) {
+    throw createAppError("Invalid message.", 400);
+  }
+}
+
+/* Inbox list (page.js server pe + GET /api/inbox dono yahi use karte hain) */
+export async function getInbox(sellerId) {
+  /* 30 din purani inquiries delete + list ek saath (list me ye pehle hi filter hoti hain) */
+  const [rows] = await Promise.all([
+    findInquiriesBySeller(sellerId),
+    deleteExpiredInquiries(sellerId),
+  ]);
+
+  return {
+    /* Client component ko sirf plain strings jaati hain (ObjectId / Date nahi) */
+    items: rows.map((r) => ({
+      id: String(r._id),
+      name: String(r.name || ""),
+      contact: String(r.contact || ""),
+      contactType: String(r.contactType || ""),
+      offering: String(r.offering || ""),
+      message: String(r.message || ""),
+      status: String(r.status || "unread"),
+      createdAt: new Date(r.createdAt).toISOString(),
+    })),
+  };
+}
+
+/* Nav badge ke liye (layout) */
+export function getUnreadInquiryCount(sellerId) {
+  return countUnreadInquiries(sellerId);
+}
+
+export async function setInquiryStatus(sellerId, id, status) {
+  assertId(id);
+
+  if (!STATUSES.includes(status)) {
+    throw createAppError("Invalid status.", 400);
+  }
+
+  const updated = await updateInquiryStatus(sellerId, id, status);
+
+  if (!updated) {
+    throw createAppError("Message not found.", 404);
+  }
+}
+
+export async function removeInquiry(sellerId, id) {
+  assertId(id);
+
+  const result = await deleteInquiryById(sellerId, id);
+
+  if (!result.deletedCount) {
+    throw createAppError("Message not found.", 404);
+  }
 }

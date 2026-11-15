@@ -20,7 +20,12 @@ const inquirySchema = new mongoose.Schema(
 
     message: { type: String, trim: true, default: "", maxlength: 1000 },
 
-    status: { type: String, enum: ["unread", "read"], default: "unread" },
+    /* unread -> kholne par read -> WhatsApp/Email reply par replied */
+    status: {
+      type: String,
+      enum: ["unread", "read", "replied"],
+      default: "unread",
+    },
 
     /* HMAC hash, raw IP store nahi hoti. Sirf rate limit ke liye. */
     ipHash: { type: String, required: true },
@@ -28,7 +33,7 @@ const inquirySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-/* Inbox: seller ke messages, newest first (+ unread filter) */
+/* Inbox: seller ke messages, newest first (+ unread filter / count) */
 inquirySchema.index({ sellerId: 1, createdAt: -1 });
 inquirySchema.index({ sellerId: 1, status: 1, createdAt: -1 });
 

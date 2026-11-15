@@ -1,4 +1,5 @@
 import { Geist, Geist_Mono } from "next/font/google";
+import SiteLoader from "../app/component/SiteLoader";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,7 +30,10 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" data-scroll-behavior="smooth" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <SiteLoader />
+        {children}
+      </body>
     </html>
   );
 }

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { requireAuth } from '@/app/lib/auth/auth';
 import { getSubscriptionSummary } from '@/app/businessLogic/subscriptionBusinessLogic';
+import { getUnreadInquiryCount } from '@/app/businessLogic/inquiryBusinessLogic';
 import './dashboard.css';
 
 export const metadata = {
@@ -114,13 +115,25 @@ function Logo({ className = '' }) {
   );
 }
 
-function SideLink({ item }) {
+/*
+ * Inbox unread badge. data-inbox-badge: Inbox page isse bina refresh ke update karta hai.
+ */
+function Badge({ count }) {
+  return (
+    <span className="dash-badge" data-inbox-badge hidden={count <= 0}>
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
+function SideLink({ item, unread = 0 }) {
   return (
     <Link href={item.href} data-nav={item.href} className="dash-link" suppressHydrationWarning>
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d={item.icon} />
       </svg>
       <span>{item.label}</span>
+      {item === INBOX && <Badge count={unread} />}
     </Link>
   );
 }
@@ -169,7 +182,12 @@ function LogoutForm() {
 
 export default async function DashboardLayout({ children }) {
   const user = await requireAuth();
-  const summary = await getSubscriptionSummary(user.id);
+
+  /* dono query ek saath chalti hain */
+  const [summary, unread] = await Promise.all([
+    getSubscriptionSummary(user.id),
+    getUnreadInquiryCount(user.id),
+  ]);
 
   const isSubscribed = summary.planId !== 'free' && !summary.expired;
 
@@ -230,7 +248,7 @@ export default async function DashboardLayout({ children }) {
             <div key={group.title} className="dash-group">
               <p className="dash-group-title">{group.title}</p>
               {group.items.map((item) => (
-                <SideLink key={item.href} item={item} />
+                <SideLink key={item.href} item={item} unread={unread} />
               ))}
             </div>
           ))}
@@ -300,6 +318,7 @@ export default async function DashboardLayout({ children }) {
               <path d={item.icon} />
             </svg>
             <span>{item.short}</span>
+            {item === INBOX && <Badge count={unread} />}
           </Link>
         ))}
       </nav>
