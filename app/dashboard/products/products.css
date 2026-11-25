@@ -1526,9 +1526,6 @@ textarea.pe-input {
 .pe-label.os-label { margin-top: 18px; margin-bottom: 8px; }
 .os-note.os-note-spaced { margin-top: 14px; }
 
-
-
-
 /* =========================================================
    SELLER REGISTRATION (steps, eye input, fees)
 ========================================================= */
@@ -1996,9 +1993,6 @@ textarea.pe-input {
 
 .sp-cta { display: block; padding: 11px 14px; font-size: 0.95em; margin-top: 4px; }
 
-
-
-
 /* =========================================================
    LOCAL DRAFT + DRAFT/LIVE PREVIEW
 ========================================================= */
@@ -2062,3 +2056,174 @@ textarea.pe-input {
 .pv-status-icons svg { display: block; }
 
 @media (max-width: 360px) { .pv-status-icons { display: none; } }
+
+/* =========================================================
+   SIZES & STOCK (product editor)
+   Classes used: sz-presets, sz-chip, sz-chip-on, sz-chip-icon,
+   sz-custom, sz-list, sz-list-head, sz-row, sz-row-label,
+   sz-row-stock, sz-total, sz-empty
+========================================================= */
+
+/* quick-pick size chips (XS, S, M, L ...) */
+.sz-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.sz-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 44px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  background: #fff;
+  color: #374151;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.sz-chip:hover {
+  border-color: var(--pe-accent);
+  color: var(--pe-accent);
+  background: var(--pe-accent-soft);
+}
+
+.sz-chip:active { transform: scale(0.97); }
+
+.sz-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+}
+
+.sz-chip-on {
+  background: var(--pe-accent);
+  border-color: var(--pe-accent);
+  color: #fff;
+  box-shadow: 0 2px 6px -2px rgba(37, 99, 235, 0.55);
+}
+
+.sz-chip-on:hover {
+  background: var(--pe-accent-dark);
+  border-color: var(--pe-accent-dark);
+  color: #fff;
+}
+
+.sz-chip-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  stroke-width: 2.6;
+}
+
+/* custom size input + Add size button */
+.sz-custom {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.sz-custom .pe-input { flex: 1; min-width: 0; }
+.sz-custom .pe-btn { flex-shrink: 0; }
+
+/* size / stock list */
+.sz-list {
+  margin-top: 16px;
+  border: 1px solid var(--pe-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.sz-list-head,
+.sz-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 31px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+}
+
+.sz-list-head {
+  background: #fafafa;
+  border-bottom: 1px solid var(--pe-border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pe-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sz-row { border-bottom: 1px solid #f3f4f6; }
+
+.sz-row-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--pe-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sz-row-stock { max-width: 220px; }
+
+/* hide number spinners for a cleaner look */
+.sz-row-stock::-webkit-outer-spin-button,
+.sz-row-stock::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.sz-row-stock { -moz-appearance: textfield; }
+
+.sz-row .pe-icon-btn:hover:not(:disabled) {
+  border-color: #fca5a5;
+  color: #dc2626;
+  background: #fff5f5;
+}
+
+.sz-total {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--pe-soft);
+  border-top: 1px solid var(--pe-border);
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.sz-total strong { color: var(--pe-text); font-size: 15px; }
+
+.sz-empty {
+  margin: 14px 0 0;
+  padding: 14px;
+  border: 1px dashed #c7d7fb;
+  background: var(--pe-soft);
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--pe-muted);
+}
+
+@media (max-width: 640px) {
+  .sz-custom { flex-direction: column; }
+  .sz-custom .pe-btn { width: 100%; }
+
+  .sz-list-head,
+  .sz-row {
+    grid-template-columns: 64px minmax(0, 1fr) 31px;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .sz-row-stock { max-width: none; }
+}

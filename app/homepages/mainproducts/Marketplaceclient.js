@@ -10,13 +10,83 @@ import { addToCart } from "@/app/lib/cart/cartStorage";
 
 import "./mainproduct.css";
 
-/* ---------------- shop action helpers ---------------- */
+/* =====================================================================
+   CONSTANTS
+   ===================================================================== */
 
 const API_URL = "/api/marketplace/products";
 const PENDING_KEY = "ls_pending_action";
 const PENDING_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_ACCENT = "#3a2b20";
 const PAGE_SIZE = 15;
+
+const SORTS = [
+  { value: "newest", label: "Newest" },
+  { value: "price-asc", label: "Price: Low to High" },
+  { value: "price-desc", label: "Price: High to Low" },
+  { value: "name", label: "Name A–Z" },
+  { value: "featured", label: "Featured" },
+];
+
+const PRICES = [
+  { value: "0-500", label: "Under ₹500" },
+  { value: "500-1000", label: "₹500 – ₹1,000" },
+  { value: "1000-2500", label: "₹1,000 – ₹2,500" },
+  { value: "2500-", label: "Above ₹2,500" },
+];
+
+/* ---------------------------------------------------------------------
+   CATEGORY IMAGES  ->  yahan sirf apne image ke path badalne hain.
+   Images ko  public/categories/  folder me rakho
+   (Next.js me "/categories/fashion.png" = public/categories/fashion.png)
+
+   Har row: [category value se match hone wala regex, image path]
+   Agar PRODUCT_CATEGORIES ke item me `image` field ho to wo sabse pehle use hoga.
+   --------------------------------------------------------------------- */
+const ALL_CATEGORY_IMAGE = "/categories/all.png";
+const FALLBACK_CATEGORY_IMAGE = "/categories/others.png";
+
+const CATEGORY_IMAGES = [
+  [/fashion|cloth/, "/categories/fashion.png"],
+  [/beauty|personal/, "/categories/beauty.png"],
+  [/electron/, "/categories/electronics.png"],
+  [/home|living/, "/categories/home.png"],
+  [/grocery|food/, "/categories/grocery.png"],
+  [/sport|fitness/, "/categories/sports.png"],
+  [/book|station/, "/categories/books.png"],
+  [/toy|kid/, "/categories/toys.png"],
+  [/auto|vehicle/, "/categories/automotive.png"],
+  [/hand|craft/, "/categories/handmade.png"],
+  [/gift|life/, "/categories/gifts.png"],
+];
+
+/* ---------------------------------------------------------------------
+   ICONS (sirf UI ke liye; category icons hata diye gaye hain)
+   --------------------------------------------------------------------- */
+const iconProps = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.8,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+};
+
+const ICON_SEARCH = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4";
+const ICON_LEFT = "M15 18l-6-6 6-6";
+const ICON_RIGHT = "M9 18l6-6-6-6";
+const ICON_DOWN = "M6 9l6 6 6-6";
+const ICON_BAG = "M6 7h12l1 13H5zM9 7a3 3 0 0 1 6 0";
+const ICON_STORE = "M4 9l1.5-5h13L20 9M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9M5 12v8h14v-8";
+const ICON_CART = "M3 4h2l.4 2M7 13h10l3-7H6.4M7 13l-1.6-7M7 13l-1.6 7h11.2";
+const ICON_BOLT = "M13 3L5 14h6l-1 7 8-11h-6z";
+const ICON_IMAGES = "M5 7h14v12H5zM8 4h11v3M9 15l3-3 4 4";
+const ICON_GRID = "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z";
+
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
 
 async function isLoggedIn() {
   try {
@@ -85,91 +155,6 @@ function runShopAction({ type, product, seller, accent, quantity = 1, router }) 
   return null;
 }
 
-const SORTS = [
-  { value: "newest", label: "Newest" },
-  { value: "price-asc", label: "Price: Low to High" },
-  { value: "price-desc", label: "Price: High to Low" },
-  { value: "name", label: "Name A–Z" },
-  { value: "featured", label: "Featured" },
-];
-
-const PRICES = [
-  { value: "0-500", label: "Under ₹500" },
-  { value: "500-1000", label: "₹500 – ₹1,000" },
-  { value: "1000-2500", label: "₹1,000 – ₹2,500" },
-  { value: "2500-", label: "Above ₹2,500" },
-];
-
-// har category ka apna soft background + matching icon colour
-const CAT_TONES = [
-  ["#fee2e2", "#dc2626"],
-  ["#ffe4e6", "#e11d48"],
-  ["#dbeafe", "#2563eb"],
-  ["#d1fae5", "#059669"],
-  ["#fef3c7", "#d97706"],
-  ["#cffafe", "#0891b2"],
-  ["#ede9fe", "#7c3aed"],
-  ["#e0e7ff", "#4f46e5"],
-  ["#ffedd5", "#ea580c"],
-  ["#dbeafe", "#2563eb"],
-  ["#fef9c3", "#ca8a04"],
-  ["#fce7f3", "#db2777"],
-  ["#f1f5f9", "#475569"],
-];
-
-/* ---------------- icons ---------------- */
-
-const iconProps = {
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.8,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-  "aria-hidden": true,
-};
-
-function IconPath({ d, ...props }) {
-  return (
-    <svg {...iconProps} {...props}>
-      <path d={d} />
-    </svg>
-  );
-}
-
-const ICON_SEARCH = "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4";
-const ICON_LEFT = "M15 18l-6-6 6-6";
-const ICON_RIGHT = "M9 18l6-6-6-6";
-const ICON_DOWN = "M6 9l6 6 6-6";
-const ICON_BAG = "M6 7h12l1 13H5zM9 7a3 3 0 0 1 6 0";
-const ICON_STORE = "M4 9l1.5-5h13L20 9M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0A2.7 2.7 0 0 0 20 9M5 12v8h14v-8";
-const ICON_CART = "M3 4h2l.4 2M7 13h10l3-7H6.4M7 13l-1.6-7M7 13l-1.6 7h11.2";
-const ICON_BOLT = "M13 3L5 14h6l-1 7 8-11h-6z";
-const ICON_IMAGES = "M5 7h14v12H5zM8 4h11v3M9 15l3-3 4 4";
-const ICON_GRID = "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z";
-
-// health/wellness and pet icons removed (categories no longer supported)
-const CATEGORY_ICONS = [
-  [/fashion|cloth/, "M8 4l-5 3 2 4 3-1v10h8V10l3 1 2-4-5-3a4 4 0 0 1-8 0z"],
-  [/beauty|personal/, "M10 3h4v6h-4zM9 9h6v4H9zM8 13h8v8H8z"],
-  [/electron/, "M4 15v-3a8 8 0 0 1 16 0v3M4 15h3v5H4zM17 15h3v5h-3z"],
-  [/home|living/, "M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6"],
-  [/grocery|food/, "M3 9h18l-2 11H5zM8 9l3-5M16 9l-3-5"],
-  [/sport|fitness/, "M3 10v4M6 8v8M18 8v8M21 10v4M6 12h12"],
-  [/book|station/, "M5 4h5v16H5zM10 4h5v16h-5zM16 6l4 1-3 13-4-1"],
-  [/toy|kid/, "M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM9 10h.01M15 10h.01M9 14a4 4 0 0 0 6 0"],
-  [/auto|car/, "M4 16v-4l2-5h12l2 5v4M4 16h16M7 19v-3M17 19v-3"],
-  [/hand|craft/, "M6 7h.01M6 17h.01M8 8l12 9M8 16L20 7"],
-  [/gift|life/, "M4 9h16v4H4zM6 13v8h12v-8M12 9v12M12 9c-3 0-4-4-1.5-4.5S12 9 12 9zM12 9c3 0 4-4 1.5-4.5S12 9 12 9z"],
-];
-
-function categoryIcon(value) {
-  const hit = CATEGORY_ICONS.find(([re]) => re.test(String(value).toLowerCase()));
-  return hit ? hit[1] : ICON_GRID;
-}
-
-/* ---------------- helpers ---------------- */
-
 async function fetchProducts(params) {
   const res = await fetch(`${API_URL}?${params.toString()}`);
   const data = await res.json();
@@ -185,7 +170,129 @@ function discountOf(p) {
 
 const isOutOfStock = (p) => p.inStock === false;
 
-/* ---------------- components ---------------- */
+function categoryImage(category) {
+  if (category.image) return category.image;
+  const value = String(category.value).toLowerCase();
+  const hit = CATEGORY_IMAGES.find(([re]) => re.test(value));
+  return hit ? hit[1] : FALLBACK_CATEGORY_IMAGE;
+}
+
+/* =====================================================================
+   SMALL COMPONENTS
+   ===================================================================== */
+
+function IconPath({ d, ...props }) {
+  return (
+    <svg {...iconProps} {...props}>
+      <path d={d} />
+    </svg>
+  );
+}
+
+/* Category tile: image dikhata hai, image na mile to grid icon fallback */
+function CategoryTile({ src, label, active, onSelect }) {
+  const [broken, setBroken] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className={active ? "mp-cat mp-cat-on" : "mp-cat"}
+      aria-pressed={active}
+      onClick={onSelect}
+    >
+      <span className="mp-cat-tile">
+        {broken ? (
+          <IconPath d={ICON_GRID} className="mp-cat-fallback" />
+        ) : (
+          <img src={src} alt="" loading="lazy" draggable="false" onError={() => setBroken(true)} />
+        )}
+      </span>
+      <span className="mp-cat-label">{label}</span>
+    </button>
+  );
+}
+
+/* Category strip: left + right buttons, edge fade, active item auto-center */
+function CategoryBar({ category, onSelect }) {
+  const trackRef = useRef(null);
+  const [edge, setEdge] = useState({ left: false, right: true });
+
+  const updateEdge = useCallback(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    setEdge({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    });
+  }, []);
+
+  const scrollByDir = (dir) => {
+    const el = trackRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.max(el.clientWidth * 0.8, 200), behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    updateEdge();
+    el.addEventListener("scroll", updateEdge, { passive: true });
+    window.addEventListener("resize", updateEdge);
+    return () => {
+      el.removeEventListener("scroll", updateEdge);
+      window.removeEventListener("resize", updateEdge);
+    };
+  }, [updateEdge]);
+
+  useEffect(() => {
+    const active = trackRef.current?.querySelector('[aria-pressed="true"]');
+    active?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [category]);
+
+  return (
+    <div className="mp-cats-row">
+      <button
+        type="button"
+        className="mp-cat-nav"
+        aria-label="Scroll categories left"
+        onClick={() => scrollByDir(-1)}
+        disabled={!edge.left}
+      >
+        <IconPath d={ICON_LEFT} />
+      </button>
+
+      <div className="mp-cats-view" data-left={edge.left} data-right={edge.right}>
+        <nav className="mp-cats" aria-label="Categories" ref={trackRef}>
+          <CategoryTile
+            src={ALL_CATEGORY_IMAGE}
+            label="All"
+            active={!category}
+            onSelect={() => onSelect("")}
+          />
+          {PRODUCT_CATEGORIES.map((c) => (
+            <CategoryTile
+              key={c.value}
+              src={categoryImage(c)}
+              label={c.label}
+              active={category === c.value}
+              onSelect={() => onSelect(c.value)}
+            />
+          ))}
+        </nav>
+      </div>
+
+      <button
+        type="button"
+        className="mp-cat-nav"
+        aria-label="Scroll categories right"
+        onClick={() => scrollByDir(1)}
+        disabled={!edge.right}
+      >
+        <IconPath d={ICON_RIGHT} />
+      </button>
+    </div>
+  );
+}
 
 function ProductCard({ product, onAdd, onBuy }) {
   const images = product.images?.length ? product.images : [];
@@ -320,13 +427,15 @@ function SkeletonGrid({ count = 8 }) {
   );
 }
 
-/* ---------------- page ---------------- */
+/* =====================================================================
+   PAGE
+   ===================================================================== */
 
 function Marketplace() {
+  /* ---------- routing / url params ---------- */
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
-  const catRef = useRef(null);
   const reqId = useRef(0);
 
   const q = sp.get("q") || "";
@@ -336,7 +445,9 @@ function Marketplace() {
   const sort = sp.get("sort") || "newest";
   const price = sp.get("price") || "";
   const featuredOnly = sp.get("featured") === "1";
+  const currentPath = `${pathname}${sp.toString() ? `?${sp.toString()}` : ""}`;
 
+  /* ---------- state ---------- */
   const [searchText, setSearchText] = useState(q);
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -349,8 +460,11 @@ function Marketplace() {
   const [reloadKey, setReloadKey] = useState(0);
   const [toast, setToast] = useState("");
 
-  const currentPath = `${pathname}${sp.toString() ? `?${sp.toString()}` : ""}`;
+  /* ---------- derived ---------- */
+  const filtering = Boolean(q || category || price || featuredOnly);
+  const hasMore = page < pages;
 
+  /* ---------- url helpers ---------- */
   const setParams = useCallback(
     (changes) => {
       const next = new URLSearchParams(sp.toString());
@@ -360,23 +474,6 @@ function Marketplace() {
     [sp, router, pathname]
   );
 
-  const clearFilters = () => {
-    setSearchText("");
-    router.push(pathname);
-  };
-
-  /* search box */
-  useEffect(() => {
-    setSearchText(q);
-  }, [q]);
-
-  useEffect(() => {
-    if (searchText === q) return;
-    const t = setTimeout(() => setParams({ q: searchText.trim() }), 350);
-    return () => clearTimeout(t);
-  }, [searchText]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* params builder */
   const buildParams = useCallback(
     (p) => {
       const params = new URLSearchParams({ page: String(p), limit: String(PAGE_SIZE), sort });
@@ -393,27 +490,17 @@ function Marketplace() {
     [q, category, sort, price, featuredOnly]
   );
 
-  /* first page: filters badalte hi reset + 15 cards */
-  useEffect(() => {
-    const id = ++reqId.current;
-    setLoading(true);
-    setError(false);
-    setMoreError(false);
-    setItems([]);
-    setPage(1);
+  /* ---------- handlers ---------- */
+  const clearFilters = () => {
+    setSearchText("");
+    router.push(pathname);
+  };
 
-    fetchProducts(buildParams(1))
-      .then((d) => {
-        if (id !== reqId.current) return;
-        setItems(d.products);
-        setTotal(d.total);
-        setPages(d.pages);
-      })
-      .catch(() => id === reqId.current && setError(true))
-      .finally(() => id === reqId.current && setLoading(false));
-  }, [buildParams, reloadKey]);
+  const showToast = (text) => {
+    setToast(text);
+    setTimeout(() => setToast(""), 2500);
+  };
 
-  /* show more: agle 15 neeche append */
   async function loadMore() {
     if (loadingMore || page >= pages) return;
     const id = reqId.current;
@@ -438,12 +525,6 @@ function Marketplace() {
     }
   }
 
-  /* cart / buy now / auth */
-  function showToast(text) {
-    setToast(text);
-    setTimeout(() => setToast(""), 2500);
-  }
-
   async function act(type, product) {
     const seller = product.seller;
     const accent = seller.accentColor || DEFAULT_ACCENT;
@@ -464,6 +545,48 @@ function Marketplace() {
     if (result === "added") showToast("Added to your cart ✓");
   }
 
+  const handleAdd = (p) => act("ADD_TO_CART", p);
+  const handleBuy = (p) => act("BUY_NOW", p);
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    setParams({ q: searchText.trim() });
+  };
+
+  /* ---------- effects ---------- */
+
+  // url ki search -> input
+  useEffect(() => {
+    setSearchText(q);
+  }, [q]);
+
+  // input -> url (debounce)
+  useEffect(() => {
+    if (searchText === q) return;
+    const t = setTimeout(() => setParams({ q: searchText.trim() }), 350);
+    return () => clearTimeout(t);
+  }, [searchText]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // first page: filters badalte hi reset + 15 cards
+  useEffect(() => {
+    const id = ++reqId.current;
+    setLoading(true);
+    setError(false);
+    setMoreError(false);
+    setItems([]);
+    setPage(1);
+
+    fetchProducts(buildParams(1))
+      .then((d) => {
+        if (id !== reqId.current) return;
+        setItems(d.products);
+        setTotal(d.total);
+        setPages(d.pages);
+      })
+      .catch(() => id === reqId.current && setError(true))
+      .finally(() => id === reqId.current && setLoading(false));
+  }, [buildParams, reloadKey]);
+
+  // login ke baad pending cart / buy action
   useEffect(() => {
     const pending = consumePendingActionFor(window.location.pathname);
     if (!pending) return;
@@ -494,13 +617,7 @@ function Marketplace() {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* derived */
-  const filtering = Boolean(q || category || price || featuredOnly);
-  const hasMore = page < pages;
-  const handleAdd = (p) => act("ADD_TO_CART", p);
-  const handleBuy = (p) => act("BUY_NOW", p);
-  const scrollCats = (dir) => catRef.current?.scrollBy({ left: dir * 360, behavior: "smooth" });
-
+  /* ---------- render (sirf JSX) ---------- */
   return (
     <div className="mp">
       <header className="mp-hero">
@@ -512,7 +629,7 @@ function Marketplace() {
             </h1>
             <p className="mp-hero-sub">Shop from unique creators, small businesses and independent stores on LinkStorX.</p>
 
-            <form className="mp-search" role="search" onSubmit={(e) => { e.preventDefault(); setParams({ q: searchText.trim() }); }}>
+            <form className="mp-search" role="search" onSubmit={handleSearchSubmit}>
               <input
                 type="search"
                 value={searchText}
@@ -553,44 +670,29 @@ function Marketplace() {
       </header>
 
       <div className="mp-wrap">
-        <div className="mp-cats-row">
-          <nav className="mp-cats" aria-label="Categories" ref={catRef}>
-            <button type="button" className={!category ? "mp-cat mp-cat-on" : "mp-cat"} onClick={() => setParams({ category: "" })}>
-              <span className="mp-cat-circle"><IconPath d={ICON_GRID} /></span>
-              <span className="mp-cat-label">All</span>
-            </button>
-            {PRODUCT_CATEGORIES.map((c, i) => {
-              const active = category === c.value;
-              return (
-                <button
-                  key={c.value}
-                  type="button"
-                  className={active ? "mp-cat mp-cat-on" : "mp-cat"}
-                  aria-pressed={active}
-                  onClick={() => setParams({ category: c.value })}
-                >
-                  <span className="mp-cat-circle" style={{ "--cat-bg": CAT_TONES[i % CAT_TONES.length][0], "--cat-fg": CAT_TONES[i % CAT_TONES.length][1] }}>
-                    <IconPath d={categoryIcon(c.value)} />
-                  </span>
-                  <span className="mp-cat-label">{c.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-          <button type="button" className="mp-cat-next" aria-label="Scroll categories" onClick={() => scrollCats(1)}>
-            <IconPath d={ICON_RIGHT} />
-          </button>
-        </div>
+        <CategoryBar category={category} onSelect={(value) => setParams({ category: value })} />
 
         <section className="mp-section" id="all-products" aria-labelledby="mp-all">
           <h2 id="mp-all" className="mp-sr">All products</h2>
 
           <div className="mp-filters">
             <div className="mp-tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={!featuredOnly} className={!featuredOnly ? "mp-tab mp-tab-on" : "mp-tab"} onClick={() => setParams({ featured: "" })}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!featuredOnly}
+                className={!featuredOnly ? "mp-tab mp-tab-on" : "mp-tab"}
+                onClick={() => setParams({ featured: "" })}
+              >
                 All Products
               </button>
-              <button type="button" role="tab" aria-selected={featuredOnly} className={featuredOnly ? "mp-tab mp-tab-on" : "mp-tab"} onClick={() => setParams({ featured: "1" })}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={featuredOnly}
+                className={featuredOnly ? "mp-tab mp-tab-on" : "mp-tab"}
+                onClick={() => setParams({ featured: "1" })}
+              >
                 Featured
               </button>
             </div>
@@ -613,7 +715,11 @@ function Marketplace() {
               </div>
 
               <div className="mp-select mp-select-sort">
-                <select aria-label="Sort by" value={sort} onChange={(e) => setParams({ sort: e.target.value === "newest" ? "" : e.target.value })}>
+                <select
+                  aria-label="Sort by"
+                  value={sort}
+                  onChange={(e) => setParams({ sort: e.target.value === "newest" ? "" : e.target.value })}
+                >
                   {SORTS.map((s) => <option key={s.value} value={s.value}>Sort by: {s.label}</option>)}
                 </select>
                 <IconPath d={ICON_DOWN} />

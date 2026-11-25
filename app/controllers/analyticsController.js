@@ -48,15 +48,29 @@ export async function trackAnalyticsController(request) {
 
     const headers = request.headers;
 
-    await trackEvent(body, {
+    const result = await trackEvent(body, {
       viewerUserId,
+      cookies: request.cookies,
       userAgent: headers.get("user-agent") || "",
       host: headers.get("host") || "",
       /* Vercel / Cloudflare country header. VPS par ye khali rahega. */
       country: headers.get("x-vercel-ip-country") || headers.get("cf-ipcountry") || "",
     });
 
-    return NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true });
+
+    /* Unique ginti ke liye cookie (DB me visitor row nahi banti) */
+    if (result?.cookie) {
+      response.cookies.set(result.cookie.name, result.cookie.value, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 60,
+      });
+    }
+
+    return response;
   } catch (error) {
     return errorResponse(error);
   }

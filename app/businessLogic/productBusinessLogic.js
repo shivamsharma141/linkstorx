@@ -26,6 +26,7 @@ import { findProfileByUsername } from "@/app/databaseQueries/profileDatabaseQuer
 import {
   isValidCategory,
   isValidSubcategory,
+  getSizeConfig,
 } from "@/app/config/productCategories";
 
 /* =========================================================
@@ -334,12 +335,62 @@ export async function generateUniqueSlug(userId, name, excludeId) {
 }
 
 /* =========================================================
+   SIZES
+   Size sirf un category/subcategory mein allowed hai jinke liye
+   productCategories.js mein rule hai. Baaki mein sizes hamesha [].
+========================================================= */
+
+const MAX_SIZES = 20;
+const MAX_SIZE_LABEL = 20;
+const MAX_SIZE_STOCK = 100000;
+
+/* Returns { sizes } ya { error } */
+function parseSizes(raw) {
+  if (raw === undefined || raw === null) return { sizes: [] };
+  if (!Array.isArray(raw)) return { error: "Sizes are invalid." };
+  if (raw.length > MAX_SIZES) return { error: `You can add up to ${MAX_SIZES} sizes.` };
+
+  const seen = new Set();
+  const sizes = [];
+
+  for (const entry of raw) {
+    const label = String(typeof entry === "string" ? entry : entry?.label || "")
+      .trim()
+      .replace(/\s+/g, " ");
+
+    if (!label) return { error: "Size name cannot be empty." };
+
+    if (label.length > MAX_SIZE_LABEL) {
+      return { error: `Size "${label.slice(0, 20)}..." is too long (max ${MAX_SIZE_LABEL} characters).` };
+    }
+
+    const key = label.toLowerCase();
+    if (seen.has(key)) return { error: `Size "${label}" is added twice.` };
+    seen.add(key);
+
+    const stock = Number(typeof entry === "string" ? 0 : entry?.stock ?? 0);
+    if (!Number.isInteger(stock) || stock < 0 || stock > MAX_SIZE_STOCK) {
+      return { error: `Enter a valid stock (whole number) for size "${label}".` };
+    }
+
+    sizes.push({ label, stock });
+  }
+
+  return { sizes };
+}
+
+/* =========================================================
    VALIDATION
 ========================================================= */
 
 const ALLOWED_CURRENCIES = ["INR", "USD"];
 
-export function validateProduct(data) {
+/*
+ * options.requireSizes -> agar product publish ho raha hai aur category ko size
+ * chahiye, to kam se kam ek size zaroori hai. (Purane products ko featured
+ * toggle jaise partial updates par rok-tok na ho, isliye ye flag caller deta hai.)
+ */
+export function validateProduct(data, options = {}) {
   const errors = {};
 
   const name = String(data?.name || "").trim();
@@ -396,8 +447,31 @@ export function validateProduct(data) {
     errors.images = "You can upload up to 5 images.";
   }
 
+  /* Sizes: sirf tab jab ye category + subcategory size maangti hai */
+  let sizes = [];
+  const sizeConfig =
+    !errors.category && !errors.subcategory
+      ? getSizeConfig(data?.category, data?.subcategory)
+      : null;
+
+  if (sizeConfig) {
+    const parsed = parseSizes(data?.sizes);
+
+    if (parsed.error) {
+      errors.sizes = parsed.error;
+    } else {
+      sizes = parsed.sizes;
+
+      if (options.requireSizes && data?.enabled === true && sizes.length === 0) {
+        errors.sizes = "Add at least one size (with stock) to publish this product.";
+      }
+    }
+  }
+
+  const hasSizes = sizes.length > 0;
+
   const stock = data?.trackInventory ? Number(data?.stock) : 0;
-  if (data?.trackInventory && (!Number.isFinite(stock) || stock < 0)) {
+  if (!hasSizes && data?.trackInventory && (!Number.isFinite(stock) || stock < 0)) {
     errors.stock = "Enter a valid stock quantity.";
   }
 
@@ -407,7 +481,7 @@ export function validateProduct(data) {
     throw error;
   }
 
-  return { name, price, compareAtPrice, currency, deliveryType, deliveryCharge };
+  return { name, price, compareAtPrice, currency, deliveryType, deliveryCharge, sizes };
 }
 
 /* =========================================================
@@ -428,9 +502,9 @@ function normalizeImages(rawImages) {
     }));
 }
 
-export function normalizeProduct(data) {
-  const { name, price, compareAtPrice, currency, deliveryType, deliveryCharge } =
-    validateProduct(data);
+export function normalizeProduct(data, options = {}) {
+  const { name, price, compareAtPrice, currency, deliveryType, deliveryCharge, sizes } =
+    validateProduct(data, options);
 
   const images = normalizeImages(data.images);
 
@@ -441,13 +515,23 @@ export function normalizeProduct(data) {
         .slice(0, 15)
     : [];
 
-   const normalizedStatus =
+  const normalizedStatus =
     data.status === "archived"
       ? "archived"
       : data.enabled === true
       ? "published"
       : "draft";
   const normalizedEnabled = normalizedStatus === "published";
+
+  /* Sizes hon to inventory hamesha size-wise track hoti hai,
+     aur product ka total stock = saare sizes ka sum. */
+  const hasSizes = sizes.length > 0;
+  const trackInventory = hasSizes ? true : Boolean(data.trackInventory);
+  const stock = hasSizes
+    ? sizes.reduce((sum, s) => sum + s.stock, 0)
+    : trackInventory
+    ? Math.max(0, Number(data.stock) || 0)
+    : 0;
 
   return {
     name,
@@ -461,8 +545,9 @@ export function normalizeProduct(data) {
     deliveryType,
     deliveryCharge: deliveryType === "paid" ? deliveryCharge : 0,
     sku: String(data.sku || "").trim(),
-    trackInventory: Boolean(data.trackInventory),
-    stock: data.trackInventory ? Math.max(0, Number(data.stock) || 0) : 0,
+    trackInventory,
+    stock,
+    sizes,
     category: data.category,
     subcategory: data.subcategory || "",
     tags,
@@ -485,6 +570,13 @@ function toPublicProduct(product, username) {
         )
       : 0;
 
+  const sizes = (product.sizes || []).map((s) => ({
+    label: s.label,
+    stock: s.stock,
+    inStock: s.stock > 0,
+  }));
+  const hasSizes = sizes.length > 0;
+
   return {
     id: product._id.toString(),
     slug: product.slug,
@@ -506,7 +598,13 @@ function toPublicProduct(product, username) {
     subcategory: product.subcategory,
     tags: product.tags || [],
     featured: product.featured,
-    inStock: product.trackInventory ? product.stock > 0 : true,
+    hasSizes,
+    sizes,
+    inStock: hasSizes
+      ? sizes.some((s) => s.inStock)
+      : product.trackInventory
+      ? product.stock > 0
+      : true,
     stock: product.trackInventory ? product.stock : null,
     sellerUsername: username,
   };
@@ -539,6 +637,7 @@ function toDashboardProduct(product) {
     sku: product.sku,
     stock: product.stock,
     trackInventory: product.trackInventory,
+    sizes: (product.sizes || []).map((s) => ({ label: s.label, stock: s.stock })),
     category: product.category,
     subcategory: product.subcategory,
     tags: product.tags || [],
@@ -575,7 +674,7 @@ export async function createProductForUser(userId, data) {
     throw createAppError("Authentication required.", 401);
   }
 
-  const normalized = normalizeProduct(data);
+  const normalized = normalizeProduct(data, { requireSizes: true });
 
   if (normalized.enabled) await assertCanPublish(userId);
 
@@ -608,7 +707,12 @@ export async function updateProductForUser(userId, productId, data) {
      the editor simply overrides every field. */
   const merged = { ...toDashboardProduct(existing), ...data };
 
-  const normalized = normalizeProduct(merged);
+  /* Size ki zaroorat sirf tab check hoti hai jab editor ne sizes bheje hain
+     (full save). Purane products par { featured: true } jaisa partial update
+     size ki wajah se fail nahi hota. */
+  const normalized = normalizeProduct(merged, {
+    requireSizes: Array.isArray(data?.sizes),
+  });
 
   if (normalized.enabled && !existing.enabled) await assertCanPublish(userId);
 
@@ -724,9 +828,13 @@ export async function getPublicProduct(username, slug) {
    the delivery charges and the final total.
    Nothing here creates an order or touches payment.
 
+   Cart line = productId + size. Ek hi product ke alag sizes
+   alag lines hote hain, aur har line ka `key` = "productId::size".
+
    Delivery rule: each product's delivery charge is applied
-   ONCE per product (not multiplied by quantity), and only
-   when the seller set that product to "paid" delivery.
+   ONCE per product (not multiplied by quantity, and not repeated
+   for a second size of the same product), and only when the seller
+   set that product to "paid" delivery.
 ========================================================= */
 
 export async function revalidateCartItems(items) {
@@ -751,64 +859,104 @@ export async function revalidateCartItems(items) {
   let hasIssues = false;
   let currency = "INR";
 
+  const deliveryCounted = new Set();
+
   const validated = items.map((item) => {
-    const product = productMap.get(item.productId);
+    const productId = String(item.productId || "");
+    const requestedSize = String(item.size || "").trim();
+    const requested = Math.max(1, Number(item.quantity) || 1);
+
+    const product = productMap.get(productId);
+
+    /* Size ke bina key nahi banti agar product bina size ka hai */
+    const sizedProduct = Boolean(product && (product.sizes || []).length > 0);
+    const size = sizedProduct ? requestedSize : "";
+    const key = `${productId}::${size}`;
+
+    const base = {
+      key,
+      productId,
+      size,
+      quantity: requested,
+    };
 
     if (!product) {
       hasIssues = true;
       return {
-        productId: item.productId,
+        ...base,
         name: item.name || "Unknown product",
         available: false,
         reason: "deleted",
-        quantity: item.quantity,
       };
     }
 
     if (!product.enabled) {
       hasIssues = true;
-      return {
-        productId: item.productId,
-        name: product.name,
-        available: false,
-        reason: "disabled",
-        quantity: item.quantity,
-      };
+      return { ...base, name: product.name, available: false, reason: "disabled" };
     }
 
-    if (product.trackInventory && product.stock < item.quantity) {
+    if (sizedProduct) {
+      if (!size) {
+        hasIssues = true;
+        return { ...base, name: product.name, available: false, reason: "size_required" };
+      }
+
+      const sizeEntry = product.sizes.find((s) => s.label === size);
+
+      if (!sizeEntry) {
+        hasIssues = true;
+        return { ...base, name: product.name, available: false, reason: "size_unavailable" };
+      }
+
+      if (sizeEntry.stock < requested) {
+        hasIssues = true;
+        return {
+          ...base,
+          name: product.name,
+          available: false,
+          reason: "out_of_stock",
+          availableStock: sizeEntry.stock,
+        };
+      }
+    } else if (product.trackInventory && product.stock < requested) {
       hasIssues = true;
       return {
-        productId: item.productId,
+        ...base,
         name: product.name,
         available: false,
         reason: "out_of_stock",
         availableStock: product.stock,
-        quantity: item.quantity,
       };
     }
 
-    const quantity = Math.max(1, Number(item.quantity) || 1);
-    const lineSubtotal = product.price * quantity;
+    const lineSubtotal = product.price * requested;
     subtotal += lineSubtotal;
     currency = product.currency || currency;
 
-    const deliveryCharge =
-      product.deliveryType === "paid"
-        ? Math.max(0, Number(product.deliveryCharge) || 0)
-        : 0;
+    let deliveryCharge = 0;
+    let deliveryShared = false;
+
+    if (product.deliveryType === "paid") {
+      if (deliveryCounted.has(productId)) {
+        deliveryShared = true;
+      } else {
+        deliveryCounted.add(productId);
+        deliveryCharge = Math.max(0, Number(product.deliveryCharge) || 0);
+      }
+    }
+
     deliveryTotal += deliveryCharge;
 
     return {
-      productId: product._id.toString(),
+      ...base,
       name: product.name,
       image: product.images?.[0]?.url || "",
       price: product.price,
       currency: product.currency,
-      quantity,
       subtotal: lineSubtotal,
       deliveryType: product.deliveryType === "paid" ? "paid" : "free",
       deliveryCharge,
+      deliveryShared,
       available: true,
     };
   });

@@ -2,15 +2,14 @@ import mongoose from "mongoose";
 
 /*
  * Ek profile ka ek MAHINA = ek document. Ye kabhi delete nahi hota.
- * Daily / visitor documents 30 din baad hat jaate hain, par unka hisaab
- * yahan pehle hi jama ho chuka hota hai.
+ * Daily / visitor documents bante hi nahi: din-wise data isi document ke
+ * andar `days` map me jaata hai (max 31 din).
  *
- * Ek profile ka saal bhar ka data = sirf 12 documents.
- *
- * people   = us mahine me kitne alag log aaye (har insaan mahine me ek baar)
+ * people   = us mahine me kitne alag log aaye (cookie se, har insaan mahine me ek baar)
  * tappers  = us mahine me kitne alag logon ne kisi link par tap kiya
  * devices / countries / sources / links = { naam: count } maps
  * linkTitles = { linkKey: latest title }
+ * days = { "YYYY-MM-DD": { visits, taps, people, tappers, devices, countries, sources, links } }
  */
 const analyticsMonthlySchema = new mongoose.Schema(
   {
@@ -33,6 +32,8 @@ const analyticsMonthlySchema = new mongoose.Schema(
     sources: { type: mongoose.Schema.Types.Mixed, default: {} },
     links: { type: mongoose.Schema.Types.Mixed, default: {} },
     linkTitles: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+    days: { type: mongoose.Schema.Types.Mixed, default: {} },
 
     createdAt: { type: Date, default: Date.now },
   },

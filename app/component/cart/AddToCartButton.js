@@ -4,9 +4,17 @@ import { useState } from "react";
 
 import { addToCart } from "@/app/lib/cart/cartStorage";
 
+/*
+ * Size wale product par `requiresSize` true bhejo aur chuni hui `size`.
+ * Size chuni na ho to cart mein kuch add nahi hota, bas `onMissingSize` chalta hai
+ * (product page wahan "Please select a size" dikhata hai).
+ */
 export default function AddToCartButton({
   product,
   quantity = 1,
+  size = "",
+  requiresSize = false,
+  onMissingSize,
   disabled = false,
   className = "",
 }) {
@@ -15,9 +23,15 @@ export default function AddToCartButton({
   function handleClick() {
     if (disabled) return;
 
+    if (requiresSize && !size) {
+      if (onMissingSize) onMissingSize();
+      return;
+    }
+
     addToCart(
       {
         productId: product.id,
+        size: requiresSize ? size : "",
         sellerId: product.sellerUsername,
         publicUsername: product.sellerUsername,
         productSlug: product.slug,

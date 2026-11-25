@@ -7,10 +7,13 @@ import { useRouter } from "next/navigation";
 import {
   PRODUCT_CATEGORIES,
   getSubcategoriesForCategory,
+  getSizeConfig,
 } from "@/app/config/productCategories";
 
 const MAX_IMAGES = 5;
 const MAX_TAGS = 10;
+const MAX_SIZES = 20;
+const MAX_SIZE_LABEL = 20;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
@@ -215,6 +218,15 @@ function IconTagsMultiple(props) {
     <svg {...iconProps} {...props}>
       <path d="M11.5 3.5H6a2 2 0 0 0-2 2v5.5a2 2 0 0 0 .59 1.42l7 7a2 2 0 0 0 2.82 0l5.5-5.5a2 2 0 0 0 0-2.82l-7-7a2 2 0 0 0-1.41-.6z" />
       <circle cx="7.5" cy="7.5" r="1.25" />
+    </svg>
+  );
+}
+
+function IconRuler(props) {
+  return (
+    <svg {...iconProps} {...props}>
+      <path d="M3.5 16.5l13-13a1.5 1.5 0 0 1 2.1 0l1.9 1.9a1.5 1.5 0 0 1 0 2.1l-13 13a1.5 1.5 0 0 1-2.1 0l-1.9-1.9a1.5 1.5 0 0 1 0-2.1z" />
+      <path d="M7 13l2 2M10 10l2 2M13 7l2 2" />
     </svg>
   );
 }
@@ -448,12 +460,25 @@ function createDefaultProduct() {
     sku: "",
     trackInventory: true,
     stock: 0,
+    sizes: [], // [{ label, stock }] — sirf size wali categories mein use hota hai
     category: "",
     subcategory: "",
     tags: [],
     featured: false,
     enabled: false, // products are drafts until the seller clicks Publish
   };
+}
+
+/* Sizes ko hamesha { label, stock } shape mein rakho (stock input ke liye "" bhi chalta hai) */
+function normalizeSizes(raw) {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((s) => ({
+      label: String(typeof s === "string" ? s : s?.label ?? "").trim(),
+      stock: typeof s === "string" ? "" : s?.stock ?? "",
+    }))
+    .filter((s) => s.label);
 }
 
 /*
@@ -479,6 +504,7 @@ function normalizeProduct(raw) {
     sku: raw.sku ?? base.sku,
     trackInventory: raw.trackInventory ?? base.trackInventory,
     stock: raw.stock ?? base.stock,
+    sizes: normalizeSizes(raw.sizes),
     category: raw.category ?? base.category,
     subcategory: raw.subcategory ?? base.subcategory,
     tags: Array.isArray(raw.tags) ? raw.tags : [],
@@ -876,6 +902,8 @@ export default function ProductEditor({
 
   const [product, setProduct] = useState(() => normalizeProduct(initialProduct));
   const [tagInput, setTagInput] = useState("");
+  const [customSize, setCustomSize] = useState("");
+  const [sizeInputError, setSizeInputError] = useState("");
   const [uploadingCount, setUploadingCount] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -966,6 +994,17 @@ export default function ProductEditor({
     [product.category]
   );
 
+  /* Is category + subcategory ko size chahiye? (null = nahi) */
+  const sizeConfig = useMemo(
+    () => getSizeConfig(product.category, product.subcategory),
+    [product.category, product.subcategory]
+  );
+
+  const totalSizeStock = useMemo(
+    () => product.sizes.reduce((sum, s) => sum + (Number(s.stock) || 0), 0),
+    [product.sizes]
+  );
+
   const discountPercent = useMemo(() => {
     const price = Number(product.price);
     const compare = Number(product.compareAtPrice);
@@ -980,6 +1019,14 @@ export default function ProductEditor({
     const price = Number(product.price) || 0;
     const compare = Number(product.compareAtPrice) || 0;
     const hasDiscount = compare > price && price > 0;
+
+    const previewSizes = sizeConfig
+      ? product.sizes.map((s) => {
+          const stock = Math.max(0, Number(s.stock) || 0);
+          return { label: s.label, stock, inStock: stock > 0 };
+        })
+      : [];
+    const hasSizes = previewSizes.length > 0;
 
     return {
       id: productId || "preview-draft",
@@ -999,13 +1046,44 @@ export default function ProductEditor({
       subcategory: product.subcategory,
       tags: product.tags,
       featured: product.featured,
-      inStock: !(product.trackInventory && Number(product.stock) <= 0),
+      hasSizes,
+      sizes: previewSizes,
+      inStock: hasSizes
+        ? previewSizes.some((s) => s.inStock)
+        : !(product.trackInventory && Number(product.stock) <= 0),
       isDraft: !product.enabled,
     };
-  }, [product, productId]);
+  }, [product, productId, sizeConfig]);
 
   function updateField(field, value) {
     setProduct((prev) => ({ ...prev, [field]: value }));
+  }
+
+  /* Category badalne par subcategory aur sizes dono reset (alag category = alag size type) */
+  function changeCategory(value) {
+    setProduct((prev) => ({
+      ...prev,
+      category: value,
+      subcategory: "",
+      sizes: [],
+    }));
+    setSizeInputError("");
+  }
+
+  /* Subcategory badalne par sizes tabhi bachte hain jab size type wahi rahe
+     (jaise Men's Wear -> Women's Wear dono clothing sizes). */
+  function changeSubcategory(value) {
+    setProduct((prev) => {
+      const before = getSizeConfig(prev.category, prev.subcategory);
+      const after = getSizeConfig(prev.category, value);
+
+      return {
+        ...prev,
+        subcategory: value,
+        sizes: before && after && before.type === after.type ? prev.sizes : [],
+      };
+    });
+    setSizeInputError("");
   }
 
   // Seller's public STORE page. Used for "Copy Link", "Open store" and the preview iframe.
@@ -1153,6 +1231,69 @@ export default function ProductEditor({
     updateField("tags", product.tags.filter((t) => t !== tag));
   }
 
+  /* ---------------- sizes ---------------- */
+
+  const hasSizeLabel = (label) =>
+    product.sizes.some((s) => s.label.toLowerCase() === label.toLowerCase());
+
+  /* Returns true agar size add ho gayi */
+  function addSize(rawLabel) {
+    const label = String(rawLabel || "").trim().replace(/\s+/g, " ");
+    if (!label) return false;
+
+    if (label.length > MAX_SIZE_LABEL) {
+      setSizeInputError(`Size name can be up to ${MAX_SIZE_LABEL} characters.`);
+      return false;
+    }
+
+    if (hasSizeLabel(label)) {
+      setSizeInputError(`Size "${label}" is already added.`);
+      return false;
+    }
+
+    if (product.sizes.length >= MAX_SIZES) {
+      setSizeInputError(`You can add up to ${MAX_SIZES} sizes.`);
+      return false;
+    }
+
+    setSizeInputError("");
+    setProduct((prev) => ({
+      ...prev,
+      sizes: [...prev.sizes, { label, stock: "" }],
+    }));
+    return true;
+  }
+
+  function togglePresetSize(label) {
+    if (hasSizeLabel(label)) {
+      removeSizeByLabel(label);
+    } else {
+      addSize(label);
+    }
+  }
+
+  function removeSizeByLabel(label) {
+    setSizeInputError("");
+    setProduct((prev) => ({
+      ...prev,
+      sizes: prev.sizes.filter((s) => s.label !== label),
+    }));
+  }
+
+  function updateSizeStock(label, value) {
+    // sirf poore number (0 ya zyada)
+    const clean = value === "" ? "" : String(Math.max(0, Math.floor(Number(value) || 0)));
+
+    setProduct((prev) => ({
+      ...prev,
+      sizes: prev.sizes.map((s) => (s.label === label ? { ...s, stock: clean } : s)),
+    }));
+  }
+
+  function handleAddCustomSize() {
+    if (addSize(customSize)) setCustomSize("");
+  }
+
   /* ---------------- images ---------------- */
 
   async function uploadFiles(fileList) {
@@ -1266,7 +1407,19 @@ export default function ProductEditor({
       errors.deliveryCharge = "Enter the delivery charge you want to take.";
     }
 
-    if (product.trackInventory && Number(product.stock) < 0) {
+    if (sizeConfig) {
+      // Size wali category: stock sizes mein hota hai
+      if (publish && product.sizes.length === 0) {
+        errors.sizes = "Add at least one size to publish this product.";
+      } else if (
+        product.sizes.some((s) => {
+          const n = Number(s.stock === "" ? 0 : s.stock);
+          return !Number.isInteger(n) || n < 0;
+        })
+      ) {
+        errors.sizes = "Stock for each size must be a whole number (0 or more).";
+      }
+    } else if (product.trackInventory && Number(product.stock) < 0) {
       errors.stock = "Stock cannot be negative.";
     }
 
@@ -1303,6 +1456,16 @@ export default function ProductEditor({
 
     setSaving(true);
 
+    /* Size wali category mein sizes bhejte hain (stock ka total server nikalta hai).
+       Baaki categories mein sizes khali jaati hain. */
+    const payloadSizes = sizeConfig
+      ? product.sizes.map((s) => ({
+          label: s.label.trim(),
+          stock: Math.max(0, Math.floor(Number(s.stock) || 0)),
+        }))
+      : [];
+    const hasPayloadSizes = payloadSizes.length > 0;
+
     const payload = {
       name: product.name.trim(),
       shortDescription: product.shortDescription,
@@ -1315,8 +1478,11 @@ export default function ProductEditor({
       deliveryCharge:
         product.deliveryType === "paid" ? Number(product.deliveryCharge) || 0 : 0,
       sku: product.sku,
-      trackInventory: product.trackInventory,
-      stock: Number(product.stock) || 0,
+      trackInventory: hasPayloadSizes ? true : product.trackInventory,
+      stock: hasPayloadSizes
+        ? payloadSizes.reduce((sum, s) => sum + s.stock, 0)
+        : Number(product.stock) || 0,
+      sizes: payloadSizes,
       category: product.category,
       subcategory: product.subcategory,
       tags: product.tags,
@@ -1771,7 +1937,7 @@ export default function ProductEditor({
                 />
               </Field>
 
-              {product.trackInventory && (
+              {!sizeConfig && product.trackInventory && (
                 <Field label="Stock Quantity" error={fieldErrors.stock}>
                   <input
                     type="number"
@@ -1784,16 +1950,29 @@ export default function ProductEditor({
               )}
             </div>
 
-            <div className="pe-toggle-row">
-              <Toggle
-                checked={product.trackInventory}
-                onChange={(v) => updateField("trackInventory", v)}
-              />
-              <div>
-                <strong>Track Inventory</strong>
-                <small>Enable to track stock quantity</small>
+            {sizeConfig ? (
+              <div className="os-note">
+                <span className="os-note-icon">
+                  <IconInfo />
+                </span>
+                <p>
+                  <strong>Stock is managed per size.</strong> Enter the stock for
+                  each size in the Sizes &amp; Stock section below. Total stock:{" "}
+                  <strong>{totalSizeStock}</strong>
+                </p>
               </div>
-            </div>
+            ) : (
+              <div className="pe-toggle-row">
+                <Toggle
+                  checked={product.trackInventory}
+                  onChange={(v) => updateField("trackInventory", v)}
+                />
+                <div>
+                  <strong>Track Inventory</strong>
+                  <small>Enable to track stock quantity</small>
+                </div>
+              </div>
+            )}
           </Section>
 
           <Section icon={<IconTagsMultiple />} title="Category & Tags">
@@ -1802,13 +1981,7 @@ export default function ProductEditor({
                 <select
                   className="pe-input"
                   value={product.category}
-                  onChange={(e) => {
-                    setProduct((prev) => ({
-                      ...prev,
-                      category: e.target.value,
-                      subcategory: "",
-                    }));
-                  }}
+                  onChange={(e) => changeCategory(e.target.value)}
                 >
                   <option value="">Select a category</option>
                   {PRODUCT_CATEGORIES.map((c) => (
@@ -1824,7 +1997,7 @@ export default function ProductEditor({
                   <select
                     className="pe-input"
                     value={product.subcategory}
-                    onChange={(e) => updateField("subcategory", e.target.value)}
+                    onChange={(e) => changeSubcategory(e.target.value)}
                   >
                     <option value="">Select a subcategory</option>
                     {subcategories.map((sub) => (
@@ -1867,6 +2040,114 @@ export default function ProductEditor({
               </div>
             </div>
           </Section>
+
+          {/* SIZES & STOCK — sirf size wali category/subcategory mein dikhta hai */}
+          {sizeConfig && (
+            <Section
+              icon={<IconRuler />}
+              title="Sizes & Stock"
+              hint={`${sizeConfig.label}. Pick the sizes you have and enter the stock for each. Customers choose from these when they buy.`}
+            >
+              <div className="sz-presets" role="group" aria-label="Common sizes">
+                {sizeConfig.presets.map((label) => {
+                  const on = hasSizeLabel(label);
+
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-pressed={on}
+                      className={on ? "sz-chip sz-chip-on" : "sz-chip"}
+                      onClick={() => togglePresetSize(label)}
+                    >
+                      {on && <IconCheck className="sz-chip-icon" />}
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="sz-custom">
+                <input
+                  type="text"
+                  className="pe-input"
+                  placeholder="Other size, e.g. 28 or Free Size"
+                  value={customSize}
+                  maxLength={MAX_SIZE_LABEL}
+                  onChange={(e) => {
+                    setCustomSize(e.target.value);
+                    if (sizeInputError) setSizeInputError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddCustomSize();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="pe-btn pe-btn-outline"
+                  onClick={handleAddCustomSize}
+                  disabled={!customSize.trim()}
+                >
+                  <IconPlus className="pe-btn-icon" />
+                  Add size
+                </button>
+              </div>
+
+              {sizeInputError && <span className="prod-field-error">{sizeInputError}</span>}
+
+              {product.sizes.length > 0 ? (
+                <div className="sz-list">
+                  <div className="sz-list-head" aria-hidden="true">
+                    <span>Size</span>
+                    <span>Stock</span>
+                    <span />
+                  </div>
+
+                  {product.sizes.map((s) => (
+                    <div key={s.label} className="sz-row">
+                      <strong className="sz-row-label">{s.label}</strong>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        className="pe-input sz-row-stock"
+                        placeholder="0"
+                        aria-label={`Stock for size ${s.label}`}
+                        value={s.stock}
+                        onChange={(e) => updateSizeStock(s.label, e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="pe-icon-btn"
+                        aria-label={`Remove size ${s.label}`}
+                        title="Remove size"
+                        onClick={() => removeSizeByLabel(s.label)}
+                      >
+                        <IconX style={{ width: 14, height: 14 }} />
+                      </button>
+                    </div>
+                  ))}
+
+                  <p className="sz-total">
+                    Total stock: <strong>{totalSizeStock}</strong>
+                  </p>
+                </div>
+              ) : (
+                <p className="sz-empty">
+                  No sizes added yet. Tap a size above to add it. A size with
+                  stock 0 shows as sold out to customers.
+                </p>
+              )}
+
+              {fieldErrors.sizes && (
+                <span className="prod-field-error">{fieldErrors.sizes}</span>
+              )}
+            </Section>
+          )}
 
           <Section icon={<IconEye />} title="Visibility">
             <div className="vis-row">

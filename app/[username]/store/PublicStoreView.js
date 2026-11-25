@@ -78,6 +78,7 @@ function consumePendingAction() {
 function buildCartItem(product, seller, accent) {
   return {
     productId: product.id,
+    size: "", // size wale products store card se cart mein nahi jaate (product page par size chunni padti hai)
     sellerId: seller.username,
     publicUsername: seller.username,
     sellerName: seller.displayName || seller.username,
@@ -92,6 +93,9 @@ function buildCartItem(product, seller, accent) {
 }
 
 function runShopAction({ type, product, seller, accent, quantity = 1, router }) {
+  // Size wale product ko bina size ke cart mein nahi daalte
+  if (product.hasSizes) return null;
+
   try {
     localStorage.setItem("ls_cart_accent", accent);
   } catch {}
@@ -138,6 +142,9 @@ const ICO = {
 /* =========================================================
    PRODUCT CARD
 ========================================================= */
+
+const CARD_SIZES_SHOWN = 5;
+
 function ProductCard({ product, seller, accent, preview = false }) {
   const router = useRouter();
 
@@ -154,6 +161,12 @@ function ProductCard({ product, seller, accent, preview = false }) {
   } = product;
 
   const productHref = `/${seller.username}/store/${product.slug || id}`;
+
+  const sizes = Array.isArray(product.sizes) ? product.sizes : [];
+  const hasSizes = Boolean(product.hasSizes && sizes.length > 0);
+  const inStockSizes = sizes.filter((s) => s.inStock !== false).map((s) => s.label);
+  const shownSizes = inStockSizes.slice(0, CARD_SIZES_SHOWN);
+  const moreSizes = inStockSizes.length - shownSizes.length;
 
   const [imgIndex, setImgIndex] = useState(0);
   const [wishlisted, setWishlisted] = useState(false);
@@ -173,7 +186,7 @@ function ProductCard({ product, seller, accent, preview = false }) {
   }
 
   async function handleShopAction(type) {
-    if (preview || !inStock || busy) return;
+    if (preview || !inStock || busy || hasSizes) return;
     setBusy(true);
 
     try {
@@ -261,23 +274,58 @@ function ProductCard({ product, seller, accent, preview = false }) {
           {discount && <span className="ls-price-off">{discount}% off</span>}
         </div>
 
+        {/* Available sizes (sirf size wale products mein) */}
+        {hasSizes && shownSizes.length > 0 && (
+          <p
+            className="ls-product-card-sizes"
+            style={{ margin: "2px 0 0", fontSize: 12, opacity: 0.75 }}
+          >
+            Sizes: {shownSizes.join(", ")}
+            {moreSizes > 0 ? ` +${moreSizes} more` : ""}
+          </p>
+        )}
+
         <div className="ls-product-card-actions">
-          <button
-            type="button"
-            className="ls-btn ls-btn-outline ls-product-card-add"
-            disabled={!inStock || busy}
-            onClick={() => handleShopAction("ADD_TO_CART")}
-          >
-            {justAdded ? <><Ico d={ICO.check} size={13} /> Added</> : <><Ico d={ICO.cart} size={13} /> Add to Cart</>}
-          </button>
-          <button
-            type="button"
-            className="ls-btn ls-btn-primary ls-product-card-add"
-            disabled={!inStock || busy}
-            onClick={() => handleShopAction("BUY_NOW")}
-          >
-            Buy Now
-          </button>
+          {hasSizes ? (
+            inStock ? (
+              /* Size chuni nahi to cart mein nahi jaa sakta: product page par bhejo */
+              <Link
+                href={productHref}
+                className="ls-btn ls-btn-primary ls-product-card-add"
+                style={{ flex: 1, textAlign: "center", textDecoration: "none" }}
+              >
+                Select Size
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className="ls-btn ls-btn-primary ls-product-card-add"
+                style={{ flex: 1 }}
+                disabled
+              >
+                Out of Stock
+              </button>
+            )
+          ) : (
+            <>
+              <button
+                type="button"
+                className="ls-btn ls-btn-outline ls-product-card-add"
+                disabled={!inStock || busy}
+                onClick={() => handleShopAction("ADD_TO_CART")}
+              >
+                {justAdded ? <><Ico d={ICO.check} size={13} /> Added</> : <><Ico d={ICO.cart} size={13} /> Add to Cart</>}
+              </button>
+              <button
+                type="button"
+                className="ls-btn ls-btn-primary ls-product-card-add"
+                disabled={!inStock || busy}
+                onClick={() => handleShopAction("BUY_NOW")}
+              >
+                Buy Now
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -352,6 +400,7 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
             ...p,
             images: Array.isArray(p.images) ? p.images : [],
             tags: Array.isArray(p.tags) ? p.tags : [],
+            sizes: Array.isArray(p.sizes) ? p.sizes : [],
           });
         } else {
           setDraftProduct(null);
@@ -394,6 +443,9 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
       return;
     }
 
+    // Size wale product ko bina size ke cart mein nahi daalte
+    if (product.hasSizes) return;
+
     (async () => {
       if (!(await isLoggedIn())) return;
 
@@ -423,7 +475,8 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
 
   /* ---------- SEARCH INDEX ----------
      Har product ka searchable text ek baar banta hai (products badalne par),
-     har keystroke par dobara nahi. Isse search fast rehti hai. */
+     har keystroke par dobara nahi. Isse search fast rehti hai.
+     Sizes bhi searchable hain (jaise "blue hoodie xl"). */
   const searchIndex = useMemo(() => {
     const map = new Map();
 
@@ -435,6 +488,7 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
         p.category,
         p.subcategory,
         ...(p.tags || []),
+        ...(p.sizes || []).map((s) => s.label),
       ]
         .filter(Boolean)
         .join(" ")
@@ -622,7 +676,7 @@ export default function PublicStoreView({ store, previewMode = false, theme }) {
           <input
             className="ls-store-search"
             type="search"
-            placeholder="Search products, categories, brands..."
+            placeholder="Search products, categories, sizes..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoComplete="off"

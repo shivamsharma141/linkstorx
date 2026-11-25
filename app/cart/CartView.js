@@ -10,6 +10,7 @@ import {
   setQuantity,
   removeFromCart,
   subscribeToCart,
+  cartLineKey,
 } from "@/app/lib/cart/cartStorage";
 
 const EMPTY_FORM = {
@@ -36,6 +37,25 @@ function validate(f) {
   if (!/^\d{6}$/.test(f.pincode.trim())) e.pincode = "Enter a valid 6-digit pincode";
   return e;
 }
+
+/* Cart line ki problem ka message (server ke reason se) */
+function issueText(issue) {
+  switch (issue.reason) {
+    case "out_of_stock":
+      return issue.left > 0 ? `Only ${issue.left} left` : "Out of stock";
+    case "size_unavailable":
+      return "This size is no longer available";
+    case "size_required":
+      return "Please select a size";
+    case "disabled":
+      return "No longer available";
+    default:
+      return "This product was removed";
+  }
+}
+
+/* In reasons mein customer product page par ja kar dusra size chun sakta hai */
+const CAN_CHANGE_SIZE = ["size_unavailable", "size_required", "out_of_stock"];
 
 /* ---------- Razorpay checkout window ---------- */
 function loadRazorpay() {
@@ -181,8 +201,8 @@ function PaymentMethods() {
 
 export default function CartView() {
   const [items, setItems] = useState([]);
-  const [unavailable, setUnavailable] = useState({});
-  const [quote, setQuote] = useState(null); // server se: { deliveryTotal, total, delivery: { productId: charge } }
+  const [unavailable, setUnavailable] = useState({}); // lineKey -> { reason, left }
+  const [quote, setQuote] = useState(null); // server se: { deliveryTotal, total, delivery: { lineKey: { charge, shared } } }
   const [checking, setChecking] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [accent, setAccent] = useState("#3a2b20");
@@ -231,8 +251,8 @@ export default function CartView() {
     });
   }, []);
 
-  // Product ya quantity badle to dobara check hota hai
-  const cartKey = items.map((i) => `${i.productId}:${i.quantity}`).join("|");
+  // Product, size ya quantity badle to dobara check hota hai
+  const cartKey = items.map((i) => `${i.productId}:${i.size || ""}:${i.quantity}`).join("|");
 
   // Availability + delivery charges hamesha backend se re-check hote hain
   useEffect(() => {
@@ -252,7 +272,11 @@ export default function CartView() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        items: items.map((i) => ({
+          productId: i.productId,
+          size: i.size || "",
+          quantity: i.quantity,
+        })),
       }),
     })
       .then((res) => res.json())
@@ -261,8 +285,15 @@ export default function CartView() {
         const map = {};
         const delivery = {};
         data.items.forEach((i) => {
-          if (!i.available) map[i.productId] = i.reason;
-          else delivery[i.productId] = i.deliveryCharge || 0;
+          const key = i.key || cartLineKey(i.productId, i.size);
+          if (!i.available) {
+            map[key] = { reason: i.reason, left: i.availableStock || 0 };
+          } else {
+            delivery[key] = {
+              charge: i.deliveryCharge || 0,
+              shared: Boolean(i.deliveryShared),
+            };
+          }
         });
         setUnavailable(map);
         setQuote({
@@ -343,7 +374,11 @@ export default function CartView() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             seller: items[0]?.publicUsername,
-            items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+            items: items.map((i) => ({
+              productId: i.productId,
+              size: i.size || "",
+              quantity: i.quantity,
+            })),
             customer: form,
             payment: "razorpay",
           }),
@@ -397,7 +432,7 @@ export default function CartView() {
         phone: form.phone,
         storeHref,
       };
-      items.forEach((i) => removeFromCart(i.productId));
+      items.forEach((i) => removeFromCart(i.productId, i.size || ""));
       setPendingOrder(null);
       setShowConfirm(false);
       setOrderDone(snapshot);
@@ -590,8 +625,8 @@ export default function CartView() {
 
         {hasUnavailable && (
           <div className="ck-alert" role="alert">
-            Some items in your cart are no longer available. Remove them to
-            continue.
+            Some items in your cart are no longer available. Remove them or
+            choose another size to continue.
           </div>
         )}
 
@@ -617,13 +652,16 @@ export default function CartView() {
 
               <ul className="ck-items">
                 {items.map((item) => {
-                  const issue = unavailable[item.productId];
+                  const lineKey = cartLineKey(item.productId, item.size);
+                  const issue = unavailable[lineKey];
+                  const delivery = quote?.delivery?.[lineKey];
                   const soldBy =
                     item.sellerName ||
                     (item.publicUsername ? `@${item.publicUsername}` : "");
+                  const productHref = `/${item.publicUsername}/store/${item.productSlug}`;
 
                   return (
-                    <li key={item.productId} className="ck-item">
+                    <li key={lineKey} className="ck-item">
                       <div className="ck-item-media">
                         {item.image ? (
                           <img src={item.image} alt={item.name} />
@@ -633,40 +671,52 @@ export default function CartView() {
                       </div>
 
                       <div className="ck-item-main">
-                        <Link
-                          href={`/${item.publicUsername}/store/${item.productSlug}`}
-                          className="ck-item-name"
-                        >
+                        <Link href={productHref} className="ck-item-name">
                           {item.name}
                         </Link>
+                        {item.size && (
+                          <p className="ck-item-unit">
+                            Size: <b>{item.size}</b>
+                          </p>
+                        )}
                         {soldBy && <p className="ck-item-seller">Sold by {soldBy}</p>}
                         <p className="ck-item-unit">
                           {formatMoney(item.price, item.currency)}
                         </p>
 
-                        {quote && !issue && (
+                        {delivery && !issue && (
                           <p className="ck-item-unit">
-                            {quote.delivery[item.productId] > 0
-                              ? `+ ${formatMoney(quote.delivery[item.productId], item.currency)} delivery`
+                            {delivery.shared
+                              ? "Delivery is charged once for this product"
+                              : delivery.charge > 0
+                              ? `+ ${formatMoney(delivery.charge, item.currency)} delivery`
                               : "Free delivery"}
                           </p>
                         )}
 
                         {issue && (
                           <p className="ck-item-issue">
-                            {issue === "out_of_stock"
-                              ? "Out of stock"
-                              : issue === "disabled"
-                              ? "No longer available"
-                              : "This product was removed"}
+                            {issueText(issue)}
+                            {CAN_CHANGE_SIZE.includes(issue.reason) &&
+                              (Boolean(item.size) || issue.reason === "size_required") && (
+                              <>
+                                {" "}
+                                <Link
+                                  href={productHref}
+                                  style={{ textDecoration: "underline", fontWeight: 600 }}
+                                >
+                                  Choose another size
+                                </Link>
+                              </>
+                            )}
                           </p>
                         )}
 
                         <button
                           type="button"
                           className="ck-link-btn"
-                          onClick={() => removeFromCart(item.productId)}
-                          aria-label={`Remove ${item.name}`}
+                          onClick={() => removeFromCart(item.productId, item.size || "")}
+                          aria-label={`Remove ${item.name}${item.size ? `, size ${item.size}` : ""}`}
                         >
                           <Icon name="trash" size={14} />
                           Remove
@@ -676,8 +726,8 @@ export default function CartView() {
                       <div className="ck-item-side">
                         <QuantitySelector
                           quantity={item.quantity}
-                          onChange={(q) => setQuantity(item.productId, q)}
-                          disabled={Boolean(issue)}
+                          onChange={(q) => setQuantity(item.productId, q, item.size || "")}
+                          disabled={Boolean(issue) && issue.reason !== "out_of_stock"}
                         />
                         <div className="ck-item-subtotal">
                           <span>Subtotal</span>

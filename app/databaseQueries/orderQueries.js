@@ -17,6 +17,8 @@ export async function findProductsByIds(ids) {
 
 /**
  * Atomically reduces stock for tracked products.
+ * - Size wali line: sirf usi size ka stock (aur product ka total stock) kam hota hai.
+ * - Bina size wali line: seedha product ka stock kam hota hai.
  * If any line fails, everything already reduced is put back.
  */
 export async function reserveStock(lines) {
@@ -26,10 +28,22 @@ export async function reserveStock(lines) {
   for (const line of lines) {
     if (!line.trackInventory) continue;
 
-    const res = await Product.updateOne(
-      { _id: line.productId, stock: { $gte: line.quantity } },
-      { $inc: { stock: -line.quantity } }
-    );
+    let res;
+
+    if (line.size) {
+      res = await Product.updateOne(
+        {
+          _id: line.productId,
+          sizes: { $elemMatch: { label: line.size, stock: { $gte: line.quantity } } },
+        },
+        { $inc: { "sizes.$.stock": -line.quantity, stock: -line.quantity } }
+      );
+    } else {
+      res = await Product.updateOne(
+        { _id: line.productId, stock: { $gte: line.quantity } },
+        { $inc: { stock: -line.quantity } }
+      );
+    }
 
     if (res.modifiedCount !== 1) {
       await releaseStock(done);
@@ -40,11 +54,21 @@ export async function reserveStock(lines) {
   return { ok: true, reserved: done };
 }
 
+/* Stock wapas: size wali line ka us size mein, baaki ka product stock mein.
+   Agar seller ne beech mein wo size hata diya ho to us line ka kuch wapas nahi hota. */
 export async function releaseStock(lines) {
   await connectToDatabase();
   for (const line of lines) {
     if (!line.trackInventory) continue;
-    await Product.updateOne({ _id: line.productId }, { $inc: { stock: line.quantity } });
+
+    if (line.size) {
+      await Product.updateOne(
+        { _id: line.productId, "sizes.label": line.size },
+        { $inc: { "sizes.$.stock": line.quantity, stock: line.quantity } }
+      );
+    } else {
+      await Product.updateOne({ _id: line.productId }, { $inc: { stock: line.quantity } });
+    }
   }
 }
 

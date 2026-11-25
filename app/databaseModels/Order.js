@@ -24,6 +24,7 @@ const OrderItemSchema = new Schema(
     name: { type: String, required: true },
     slug: { type: String, default: "" },
     image: { type: String, default: "" },
+    size: { type: String, default: "" }, // customer ne kaunsa size chuna ("" = size wala product nahi)
     price: { type: Number, required: true, min: 0 }, // price at the time of order
     currency: { type: String, default: "INR" },
     quantity: { type: Number, required: true, min: 1 },

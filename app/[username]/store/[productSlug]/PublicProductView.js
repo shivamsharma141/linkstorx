@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import CartIcon from "@/app/component/cart/CartIcon";
@@ -11,6 +11,8 @@ import BuyNowButton from "@/app/component/cart/BuyNowButton";
 const DEFAULT_ACCENT = "#3a2b20";
 
 const CURRENCY_SYMBOL = { INR: "₹", USD: "$" };
+
+const LOW_STOCK_NOTE = 5; // itne ya kam bache ho to "Only N left" dikhao
 
 function money(value, currency) {
   const code = currency === "USD" ? "USD" : "INR";
@@ -70,10 +72,14 @@ function BackIcon() {
 export default function PublicProductView({ product, username }) {
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState("");
+  const [sizeError, setSizeError] = useState("");
   const [copyLabel, setCopyLabel] = useState("Copy Link");
   const [accent, setAccent] = useState(
     product.accentColor || product.sellerAccentColor || DEFAULT_ACCENT
   );
+
+  const sizeRef = useRef(null);
 
   // Seller's accent: from product data if available, else the key the store page already saves
   useEffect(() => {
@@ -86,11 +92,38 @@ export default function PublicProductView({ product, username }) {
 
   const images = product.images || [];
   const tags = product.tags || [];
-  const maxQuantity = product.stock ? Math.min(product.stock, 99) : 99;
+  const sizes = product.sizes || [];
+  const hasSizes = Boolean(product.hasSizes && sizes.length > 0);
   const categoryLabel = product.subcategory || product.category;
+
+  const selectedEntry = hasSizes ? sizes.find((s) => s.label === selectedSize) : null;
+
+  // Size wale product mein max quantity chuni hui size ke stock se tay hoti hai
+  const maxQuantity = hasSizes
+    ? selectedEntry
+      ? Math.max(1, Math.min(selectedEntry.stock, 99))
+      : 99
+    : product.stock
+    ? Math.min(product.stock, 99)
+    : 99;
+
+  // Size badalne par agar quantity us size ke stock se zyada ho gayi ho to kam kar do
+  useEffect(() => {
+    if (quantity > maxQuantity) setQuantity(maxQuantity);
+  }, [maxQuantity, quantity]);
 
   const paidDelivery =
     product.deliveryType === "paid" && Number(product.deliveryCharge) > 0;
+
+  function chooseSize(label) {
+    setSelectedSize(label);
+    setSizeError("");
+  }
+
+  function handleMissingSize() {
+    setSizeError("Please select a size");
+    sizeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 
   async function handleShare() {
     const url = window.location.href;
@@ -225,6 +258,50 @@ export default function PublicProductView({ product, username }) {
             </section>
           )}
 
+          {/* SIZE */}
+          {hasSizes && (
+            <div
+              ref={sizeRef}
+              className={sizeError ? "ls-size-block ls-size-block-error" : "ls-size-block"}
+            >
+              <div className="ls-size-head">
+                <span className="ls-size-label" id="ls-size-h">
+                  {selectedSize ? `Size: ${selectedSize}` : "Select size"}
+                </span>
+                {sizeError && (
+                  <span className="ls-size-error" role="alert">
+                    {sizeError}
+                  </span>
+                )}
+              </div>
+
+              <div className="ls-size-options" role="radiogroup" aria-labelledby="ls-size-h">
+                {sizes.map((s) => {
+                  const on = s.label === selectedSize;
+
+                  return (
+                    <button
+                      key={s.label}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      disabled={!s.inStock}
+                      title={s.inStock ? undefined : "Out of stock"}
+                      className={on ? "ls-size-btn ls-size-btn-on" : "ls-size-btn"}
+                      onClick={() => chooseSize(s.label)}
+                    >
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedEntry && selectedEntry.stock <= LOW_STOCK_NOTE && (
+                <p className="ls-size-low">Only {selectedEntry.stock} left in this size</p>
+              )}
+            </div>
+          )}
+
           <div className="ls-product-buy">
             <div className="ls-product-qty-row">
               <span className="ls-product-qty-label">Quantity</span>
@@ -240,6 +317,9 @@ export default function PublicProductView({ product, username }) {
               <AddToCartButton
                 product={product}
                 quantity={quantity}
+                size={selectedSize}
+                requiresSize={hasSizes}
+                onMissingSize={handleMissingSize}
                 disabled={!product.inStock}
                 className="ls-product-actions-add"
               />
@@ -247,6 +327,9 @@ export default function PublicProductView({ product, username }) {
               <BuyNowButton
                 product={product}
                 quantity={quantity}
+                size={selectedSize}
+                requiresSize={hasSizes}
+                onMissingSize={handleMissingSize}
                 disabled={!product.inStock}
                 className="ls-product-actions-buy"
               />

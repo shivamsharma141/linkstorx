@@ -5,6 +5,7 @@ import CategoryScroller from "./component/home/CategoryScroller";
 import { getCurrentUser } from "@/app/lib/auth/auth";
 import { PRODUCT_CATEGORIES } from "@/app/config/productCategories";
 
+
 import "./component/home/home.css";
 
 // Apne routes ke hisaab se yahan change kar lena

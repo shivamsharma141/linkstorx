@@ -70,6 +70,8 @@ export function validateCustomer(input = {}) {
   return { customer, note };
 }
 
+/* Cart line = productId + size. Same product + same size merge hota hai,
+   same product ke alag sizes alag lines rehte hain. */
 function normalizeItems(items) {
   if (!Array.isArray(items) || items.length === 0) throw new OrderError("Your cart is empty.", 400);
   if (items.length > MAX_LINES) throw new OrderError("Too many items in one order.", 400);
@@ -77,14 +79,22 @@ function normalizeItems(items) {
   const merged = new Map();
   for (const it of items) {
     const id = String(it?.productId || "");
+    const size = str(it?.size, 20);
     const qty = Number(it?.quantity);
     if (!isValidId(id)) throw new OrderError("Invalid product in cart.", 400);
     if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) {
       throw new OrderError(`Quantity must be between 1 and ${MAX_QTY}.`, 400);
     }
-    merged.set(id, Math.min(MAX_QTY, (merged.get(id) || 0) + qty));
+
+    const key = `${id}::${size}`;
+    const prev = merged.get(key);
+    merged.set(key, {
+      productId: id,
+      size,
+      quantity: Math.min(MAX_QTY, (prev?.quantity || 0) + qty),
+    });
   }
-  return [...merged].map(([productId, quantity]) => ({ productId, quantity }));
+  return [...merged.values()];
 }
 
 const imageOf = (p) => {
@@ -114,6 +124,7 @@ export function serializeOrder(o) {
       name: i.name,
       slug: i.slug,
       image: i.image,
+      size: i.size || "",
       price: i.price,
       currency: i.currency,
       quantity: i.quantity,
@@ -157,12 +168,13 @@ export async function placeOrder({ seller, items, customer, payment, buyerId = n
     console.error("expire unpaid orders failed:", err);
   }
 
-  // Prices, delivery charges and seller always come from the DB, never from the browser
+  // Prices, delivery charges, sizes and seller always come from the DB, never from the browser
   const products = await findProductsByIds(lines.map((l) => l.productId));
   const byId = new Map(products.map((p) => [String(p._id), p]));
 
   let sellerDoc = null;
   const orderItems = [];
+  const deliveryCounted = new Set(); // ek product ka delivery charge sirf ek baar
 
   for (const line of lines) {
     const p = byId.get(line.productId);
@@ -174,7 +186,32 @@ export async function placeOrder({ seller, items, customer, payment, buyerId = n
       throw new OrderError("You can only order from one seller at a time.", 400);
     }
 
-    if (p.trackInventory && (Number(p.stock) || 0) < line.quantity) {
+    const hasSizes = Array.isArray(p.sizes) && p.sizes.length > 0;
+    let size = "";
+
+    if (hasSizes) {
+      // Size wale product mein size zaroori hai aur wo seller ki list mein honi chahiye
+      if (!line.size) {
+        throw new OrderError(`Please select a size for "${p.name}".`, 400);
+      }
+
+      const sizeEntry = p.sizes.find((s) => s.label === line.size);
+      if (!sizeEntry) {
+        throw new OrderError(`Size ${line.size} is no longer available for "${p.name}".`, 409);
+      }
+
+      const left = Math.max(0, Number(sizeEntry.stock) || 0);
+      if (left < line.quantity) {
+        throw new OrderError(
+          left === 0
+            ? `"${p.name}" (size ${line.size}) is out of stock.`
+            : `Only ${left} left for "${p.name}" (size ${line.size}).`,
+          409
+        );
+      }
+
+      size = line.size;
+    } else if (p.trackInventory && (Number(p.stock) || 0) < line.quantity) {
       const left = Math.max(0, Number(p.stock) || 0);
       throw new OrderError(
         left === 0 ? `"${p.name}" is out of stock.` : `Only ${left} left for "${p.name}".`,
@@ -182,19 +219,25 @@ export async function placeOrder({ seller, items, customer, payment, buyerId = n
       );
     }
 
+    // Delivery: seller ne "paid" chuna ho to hi charge; ek product ka ek hi baar
+    let deliveryCharge = 0;
+    if (p.deliveryType === "paid" && !deliveryCounted.has(line.productId)) {
+      deliveryCounted.add(line.productId);
+      deliveryCharge = Math.max(0, Number(p.deliveryCharge) || 0);
+    }
+
     orderItems.push({
       productId: p._id,
       name: p.name,
       slug: p.slug || "",
       image: imageOf(p),
+      size,
       price: Number(p.price),
       currency: p.currency || "INR",
       quantity: line.quantity,
       lineTotal: round2(Number(p.price) * line.quantity),
-      // Delivery: seller ne "paid" chuna ho to hi charge; ek product ka ek hi baar
-      deliveryCharge:
-        p.deliveryType === "paid" ? Math.max(0, Number(p.deliveryCharge) || 0) : 0,
-      trackInventory: Boolean(p.trackInventory),
+      deliveryCharge,
+      trackInventory: hasSizes ? true : Boolean(p.trackInventory),
     });
   }
 

@@ -15,6 +15,24 @@ const productImageSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/* Ek size aur uska apna stock. Example: { label: "M", stock: 10 } */
+const productSizeSchema = new mongoose.Schema(
+  {
+    label: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 20,
+    },
+    stock: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+  },
+  { _id: false }
+);
+
 const productSchema = new mongoose.Schema(
   {
     /* Owning seller. Resolved via Profile.userId — never
@@ -105,6 +123,8 @@ const productSchema = new mongoose.Schema(
       default: "",
     },
 
+    /* Agar product mein sizes hain to `stock` = saare sizes ke stock ka total
+       (backend khud calculate karta hai). Sizes na hon to ye seedha stock hai. */
     stock: {
       type: Number,
       default: 0,
@@ -114,6 +134,17 @@ const productSchema = new mongoose.Schema(
     trackInventory: {
       type: Boolean,
       default: true,
+    },
+
+    /* Size wali categories ke liye (clothes, shoes...). Khali array = size nahi.
+       Har size ka apna stock hota hai. */
+    sizes: {
+      type: [productSizeSchema],
+      default: [],
+      validate: {
+        validator: (arr) => arr.length <= 20,
+        message: "A product can have at most 20 sizes.",
+      },
     },
 
     category: {

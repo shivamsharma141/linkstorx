@@ -6,9 +6,7 @@ import {
 import {
   recordVisit,
   recordTap,
-  findDailyStats,
   findMonthlyStats,
-  countVisitors,
   decodeKey,
 } from "@/app/databaseQueries/analyticsDatabaseQueries";
 
@@ -17,13 +15,13 @@ import {
 ========================================================= */
 
 const TIMEZONE = "Asia/Kolkata"; // IST me din kaatenge (no DST, fixed +05:30)
-/* 7d / 30d daily documents se, 12m monthly documents se (daily 30 din baad delete hote hain) */
 const RANGE_DAYS = { "7d": 7, "30d": 30 };
 const MONTH_RANGE = "12m";
 const MONTHS_BACK = 12;
 const LINK_KINDS = ["link", "offer", "social", "store"];
 
-const VISITOR_PATTERN = /^[a-zA-Z0-9-]{8,64}$/;
+/* linkId ka format (random garbage se maps ki keys na badhein) */
+const LINK_ID_PATTERN = /^[a-zA-Z0-9_-]{1,60}$/;
 
 const BOT_PATTERN =
   /bot|crawl|spider|slurp|preview|facebookexternalhit|headless|lighthouse|pingdom|monitor|curl|wget|python-requests|axios|node-fetch|go-http|httpclient/i;
@@ -87,21 +85,19 @@ function hostOf(url) {
   }
 }
 
-/* Priority: ?ref= / utm_source  ->  Referer header  ->  in-app browser (UA)  ->  Direct */
+/* Priority: ?ref= / utm_source  ->  Referer header  ->  in-app browser (UA)  ->  Direct.
+   Unknown source "Other" ban jaata hai (spam se maps ki keys na badhein). */
 function resolveSource({ ref, referrer, userAgent, ownHost }) {
   const refParam = String(ref || "").trim().slice(0, 40);
 
   if (refParam) {
-    return (
-      matchSource(refParam) ||
-      refParam.charAt(0).toUpperCase() + refParam.slice(1).toLowerCase()
-    );
+    return matchSource(refParam) || "Other";
   }
 
   const host = hostOf(referrer);
 
   if (host && host !== ownHost) {
-    return matchSource(host) || host.slice(0, 40);
+    return matchSource(host) || "Other";
   }
 
   /* Instagram / Facebook app ke andar ka browser referrer hata deta hai */
@@ -115,11 +111,28 @@ function resolveSource({ ref, referrer, userAgent, ownHost }) {
 }
 
 /* =========================================================
+   DATE HELPERS
+========================================================= */
+
+const dayFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/* =========================================================
    TRACK (public)
 ========================================================= */
 
 export async function trackEvent(input, context) {
-  const { userAgent = "", country = "", host = "", viewerUserId = null } = context;
+  const {
+    userAgent = "",
+    country = "",
+    host = "",
+    viewerUserId = null,
+    cookies = null,
+  } = context;
 
   /* Bots / link preview crawlers */
   if (!userAgent || BOT_PATTERN.test(userAgent)) {
@@ -150,10 +163,6 @@ export async function trackEvent(input, context) {
     return { tracked: false };
   }
 
-  const visitorId = VISITOR_PATTERN.test(String(input?.visitorId || ""))
-    ? String(input.visitorId)
-    : "";
-
   const device = parseDevice(userAgent);
 
   const source = resolveSource({
@@ -164,48 +173,57 @@ export async function trackEvent(input, context) {
   });
 
   const day = dayFormatter.format(new Date());
+  const month = day.slice(0, 7);
+
+  /* Cookie me "aakhri baar kis din aaya / tap kiya" likha hota hai (YYYY-MM-DD).
+     Isi se pata chalta hai ki banda aaj / is mahine pehli baar aaya ya nahi. */
+  const readDay = (name) => {
+    const value = cookies?.get?.(name)?.value || "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  };
 
   if (type === "visit") {
+    const cookieName = `an_v_${profile._id}`;
+    const last = readDay(cookieName);
+
     await recordVisit({
       profileId: profile._id,
       day,
-      visitorId,
+      newToday: last !== day,
+      newThisMonth: !last || last.slice(0, 7) !== month,
       device,
       country: parseCountry(country),
       source,
     });
 
-    return { tracked: true };
+    return { tracked: true, cookie: { name: cookieName, value: day } };
   }
 
-  const linkId = String(input?.linkId || "").trim().slice(0, 100);
+  const linkId = String(input?.linkId || "").trim();
   const linkKind = LINK_KINDS.includes(input?.linkKind) ? input.linkKind : "";
 
-  if (!linkId || !linkKind) {
+  if (!LINK_ID_PATTERN.test(linkId) || !linkKind) {
     throw createAppError("Invalid tap.", 400);
   }
+
+  const tapCookie = `an_t_${profile._id}`;
+  const lastTap = readDay(tapCookie);
 
   await recordTap({
     profileId: profile._id,
     day,
-    visitorId,
+    newTapperToday: lastTap !== day,
+    newTapperThisMonth: !lastTap || lastTap.slice(0, 7) !== month,
     linkKey: `${linkKind}:${linkId}`,
     linkTitle: String(input?.linkTitle || "").trim().slice(0, 80),
   });
 
-  return { tracked: true };
+  return { tracked: true, cookie: { name: tapCookie, value: day } };
 }
 
 /* =========================================================
    READ (owner dashboard)
 ========================================================= */
-
-const dayFormatter = new Intl.DateTimeFormat("en-CA", {
-  timeZone: TIMEZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
 
 function buildDayKeys(days) {
   const now = Date.now();
@@ -307,7 +325,7 @@ function buildResponse({
   };
 }
 
-/* 12 mahine: AnalyticsMonthly se (chart me har mahine ka ek point) */
+/* 12 mahine: monthly docs ke top-level totals se (chart me har mahine ka ek point) */
 async function getMonthlyAnalytics(profile) {
   const keys = buildMonthKeys(MONTHS_BACK);
 
@@ -378,20 +396,11 @@ export async function getAnalytics(userId, rangeParam) {
   }
 
   const range = RANGE_DAYS[rangeParam] ? rangeParam : "7d";
-  const days = RANGE_DAYS[range];
-
-  const keys = buildDayKeys(days);
+  const keys = buildDayKeys(RANGE_DAYS[range]);
   const fromDay = keys[0];
 
-  let docs = [];
-  let visitors = { people: 0, tappers: 0 };
-
-  if (profile) {
-    [docs, visitors] = await Promise.all([
-      findDailyStats(profile._id, fromDay),
-      countVisitors(profile._id, fromDay),
-    ]);
-  }
+  /* range max 30 din ka hai, toh max 2 monthly docs */
+  const docs = profile ? await findMonthlyStats(profile._id, fromDay.slice(0, 7)) : [];
 
   /* chart: har din ek point (khali din = 0) */
   const byDay = new Map(keys.map((key) => [key, { date: key, visits: 0, taps: 0 }]));
@@ -404,22 +413,30 @@ export async function getAnalytics(userId, rangeParam) {
 
   let visits = 0;
   let taps = 0;
+  let people = 0;
+  let tappers = 0;
 
-  /* docs day ke hisaab se sorted hain, isliye title me sabse naya jeetega */
   for (const doc of docs) {
-    const point = byDay.get(doc.day);
-    if (!point) continue;
+    for (const [day, d] of Object.entries(doc.days || {})) {
+      const point = byDay.get(day);
+      if (!point) continue;
 
-    point.visits = doc.visits || 0;
-    point.taps = doc.taps || 0;
-    visits += point.visits;
-    taps += point.taps;
+      point.visits = d.visits || 0;
+      point.taps = d.taps || 0;
+      visits += point.visits;
+      taps += point.taps;
 
-    addCounts(devices, doc.devices);
-    addCounts(countries, doc.countries, true);
-    addCounts(sources, doc.sources, true);
-    addCounts(links, doc.links, true);
+      /* har din ke unique log jodte hain (7d/30d me ye approx hai) */
+      people += d.people || 0;
+      tappers += d.tappers || 0;
 
+      addCounts(devices, d.devices);
+      addCounts(countries, d.countries, true);
+      addCounts(sources, d.sources, true);
+      addCounts(links, d.links, true);
+    }
+
+    /* docs month ke hisaab se sorted hain, isliye title me sabse naya jeetega */
     for (const [key, title] of Object.entries(doc.linkTitles || {})) {
       titles[decodeKey(key)] = title;
     }
@@ -431,8 +448,8 @@ export async function getAnalytics(userId, rangeParam) {
     series: [...byDay.values()],
     visits,
     taps,
-    people: visitors.people,
-    tappers: visitors.tappers,
+    people,
+    tappers,
     devices,
     countries,
     sources,
